@@ -1,0 +1,128 @@
+---
+alwaysApply: true
+---
+
+# POC - Vector Database para Documentos
+
+## 🎯 OBJETIVO
+
+Criar uma POC para ingestão e indexação de documentos diversos (PDF, DOCX, links) transformando-os em trechos úteis e buscáveis semanticamente para uso como contexto de IA.
+
+## 📋 ARQUITETURA DEFINIDA
+
+### Pipeline de Ingestão (Python)
+
+- **Parsing**: unstructured + python-docx + trafilatura  
+- **Chunking**: LangChain (chunking semântico)
+- **Embeddings**: OpenAI text-embedding-3-small
+- **Vector DB**: Chroma (local, SQLite, zero config)
+
+### API de Consumo (Node.js - futuro)
+
+- Consultas ao Chroma + chamadas para LLM
+
+## 🗂 ESTRUTURA DO PROJETO
+
+```
+/home/andre/Projects/poc-intelligent-document-search/
+├── documents/           # PDFs, DOCs de entrada
+├── src/
+│   ├── ingest.py       # Pipeline de ingestão
+│   ├── chunker.py      # Lógica de chunking
+│   ├── embedder.py     # Geração de embeddings
+│   └── query.py        # Busca e retrieval
+├── data/
+│   └── chroma_db/      # Base vetorial local
+├── requirements.txt
+└── README.md
+```
+
+## 🔄 FLUXO DE INGESTÃO
+
+### 1. Upload + Parsing
+
+**Entrada**: arquivos .pdf, .docx, .doc, links
+**Saída**:
+
+```json
+{
+  "text": "Solicito a Vossa Excelência a emissão do documento XYZ...",
+  "metadata": {
+    "source": "manual_redacao.pdf", 
+    "page": 4,
+    "tipo_documento": "manual",
+    "assunto": "estrutura do ofício"
+  }
+}
+```
+
+### 2. Chunking
+
+- **Tamanho**: 300-500 tokens por chunk
+- **Estratégia**: Semântico (por parágrafo/sentença lógica)
+- **Overlapping**: 50 tokens de sobreposição
+- **Especial**: Para docs jurídicos, considerar quebras por artigo/inciso
+
+### 3. Embeddings
+
+- **Modelo**: OpenAI text-embedding-3-small
+- **Saída**: Vetor + metadados para cada chunk
+
+### 4. Armazenamento
+
+- **Chroma**: Banco vetorial local (SQLite)
+- **Metadados**: Filtros por tipo, página, documento, etc.
+
+## 🎛 DECISÕES TÉCNICAS
+
+### Por que Python para ingestão?
+
+- Melhores bibliotecas para processamento de documentos
+- LangChain maduro para chunking semântico
+- Ecossistema de IA mais robusto
+
+### Por que Chroma?
+
+- Zero setup (pip install chromadb)
+- Persistência local em arquivo
+- Fácil migração futura para Weaviate/Qdrant
+- Suporte nativo a filtros por metadata
+
+### Por que OpenAI Embeddings?
+
+- Custo x performance equilibrado
+- API estável e documentada
+- Compatibilidade com diversos vector DBs
+
+## 🚧 PRÓXIMOS PASSOS
+
+1. ~~Implementar pipeline básico de ingestão~~ ✅ CONCLUÍDO
+2. Testar com documentos reais do usuário
+3. ~~Implementar busca e retrieval~~ ✅ CONCLUÍDO  
+4. Avaliar qualidade das respostas
+5. API Node.js para consumo
+
+## 🎯 PRONTO PARA TESTE
+
+O pipeline está implementado e funcional. Para testar:
+
+1. Criar arquivo `.env` com `OPENAI_API_KEY`
+2. Instalar dependências: `pip install -r requirements.txt`
+3. Colocar documentos na pasta `documents/`
+4. Executar: `python src/ingest.py` (ingestão)
+5. Executar: `python src/query.py` (busca)
+
+## 💡 NOTAS IMPORTANTES
+
+- Usuário é iniciante em vector databases
+- Chunking semântico será implementado conforme necessário
+- LLM de consumo será definido depois (provavelmente GPT-4o-mini)
+- Avaliação de qualidade será implementada posteriormente
+
+## 🚫 REGRAS DE DESENVOLVIMENTO
+
+- **NÃO adicionar comentários no código**
+- **NÃO criar ou atualizar README automaticamente**
+- **NÃO adicionar explicações em arquivos**
+- **Gerar código e arquivos SOMENTE quando o usuário autorizar explicitamente**
+- **NÃO concordar sempre com o usuário, sugerir mudanças e alertar sobre possíveis problemas**
