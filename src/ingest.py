@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 import chromadb
 from chromadb.config import Settings
-from unstructured.partition.auto import partition
+import pdfplumber
 from docx import Document
 import trafilatura
 from embedder import Embedder
@@ -28,15 +28,18 @@ class DocumentIngestor:
         self.chunker = Chunker()
     
     def parse_pdf(self, file_path):
-        elements = partition(filename=file_path)
-        text = "\n\n".join([str(element) for element in elements])
-        
+        texts = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                t = page.extract_text() or ""
+                if t:
+                    texts.append(t)
+        text = "\n\n".join(texts)
         metadata = {
             "source": os.path.basename(file_path),
             "file_type": "pdf",
             "file_path": file_path
         }
-        
         return text, metadata
     
     def parse_docx(self, file_path):
@@ -77,7 +80,7 @@ class DocumentIngestor:
         
         if file_path.suffix.lower() == '.pdf':
             text, metadata = self.parse_pdf(str(file_path))
-        elif file_path.suffix.lower() in ['.docx', '.doc']:
+        elif file_path.suffix.lower() == '.docx':
             text, metadata = self.parse_docx(str(file_path))
         else:
             raise ValueError(f"Tipo de arquivo não suportado: {file_path.suffix}")
@@ -123,7 +126,7 @@ if __name__ == "__main__":
     documents_dir = Path("./documents")
     if documents_dir.exists():
         for file_path in documents_dir.glob("*"):
-            if file_path.suffix.lower() in ['.pdf', '.docx', '.doc']:
+            if file_path.suffix.lower() in ['.pdf', '.docx']:
                 try:
                     chunks = ingestor.ingest_file(file_path)
                     print(f"Processado {file_path.name}: {chunks} chunks")

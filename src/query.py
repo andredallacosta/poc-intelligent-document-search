@@ -40,7 +40,7 @@ if __name__ == "__main__":
     query = DocumentQuery()
     
     search_term = input("Digite sua pergunta: ")
-    results = query.search(search_term, n_results=3)
+    results = query.search(search_term, n_results=5)
     
     print(f"\nResultados para: '{search_term}'\n")
     for i, result in enumerate(results, 1):

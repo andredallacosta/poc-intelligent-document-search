@@ -6,7 +6,7 @@ A proof-of-concept that ingests various document formats (PDF, DOCX, URLs) and e
 
 ## ✨ Features
 
-- 📄 **Multi-format support**: PDF, DOCX, DOC, and web content
+- 📄 **Multi-format support**: PDF, DOCX, and web content
 - 🧠 **Semantic search**: Find content by meaning, not just keywords
 - ⚡ **Fast retrieval**: ChromaDB vector database for efficient similarity search
 - 🤖 **OpenAI embeddings**: Powered by `text-embedding-3-small`
@@ -101,7 +101,7 @@ for result in results:
 ## 📋 Supported Formats
 
 - 📄 PDF files
-- 📝 Microsoft Word (.docx, .doc)
+- 📝 Microsoft Word (.docx)
 - 🌐 Web pages (URLs)
 
 ## 🎯 Use Cases
