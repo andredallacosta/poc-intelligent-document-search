@@ -1,11 +1,9 @@
 import os
-import uuid
+import hashlib
 from pathlib import Path
-import chromadb
 from chromadb.config import Settings
-import pdfplumber
-from docx import Document
-import trafilatura
+from langchain_community.document_loaders import PDFPlumberLoader, Docx2txtLoader, WebBaseLoader
+from langchain_chroma import Chroma
 from embedder import Embedder
 from chunker import Chunker
 
@@ -13,66 +11,51 @@ class DocumentIngestor:
     def __init__(self, db_path="./data/chroma_db"):
         self.db_path = db_path
         Path(db_path).mkdir(parents=True, exist_ok=True)
-        
-        self.client = chromadb.PersistentClient(
-            path=db_path,
-            settings=Settings(anonymized_telemetry=False)
-        )
-        
-        self.collection = self.client.get_or_create_collection(
-            name="documents",
-            metadata={"hnsw:space": "cosine"}
-        )
-        
         self.embedder = Embedder()
         self.chunker = Chunker()
+        self.db = Chroma(
+            collection_name="documents",
+            persist_directory=db_path,
+            embedding_function=self.embedder.embeddings,
+            client_settings=Settings(anonymized_telemetry=False)
+        )
     
     def parse_pdf(self, file_path):
-        texts = []
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                t = page.extract_text() or ""
-                if t:
-                    texts.append(t)
-        text = "\n\n".join(texts)
+        loader = PDFPlumberLoader(file_path)
+        doc = loader.load()
+        text = "\n\n".join(d.page_content for d in doc if d.page_content)
         metadata = {
             "source": os.path.basename(file_path),
             "file_type": "pdf",
-            "file_path": file_path
+            "file_path": file_path,
         }
         return text, metadata
     
     def parse_docx(self, file_path):
         try:
-            doc = Document(file_path)
-            text = "\n\n".join([paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()])
-            
+            doc = Docx2txtLoader(file_path).load()
+            text = "\n\n".join(d.page_content for d in doc if d.page_content)
             if not text.strip():
                 raise ValueError("Documento DOCX vazio ou sem texto")
-            
             metadata = {
                 "source": os.path.basename(file_path),
-                "file_type": "docx", 
+                "file_type": "docx",
                 "file_path": file_path
             }
-            
             return text, metadata
         except Exception as e:
             raise Exception(f"Erro ao processar DOCX {file_path}: {e}")
     
     def parse_url(self, url):
-        downloaded = trafilatura.fetch_url(url)
-        text = trafilatura.extract(downloaded)
-        
+        doc = WebBaseLoader(urls=[url]).load()
+        text = "\n\n".join(d.page_content for d in doc if d.page_content)
         if not text:
             raise ValueError(f"Não foi possível extrair conteúdo da URL: {url}")
-        
         metadata = {
             "source": url,
             "file_type": "url",
             "url": url
         }
-        
         return text, metadata
     
     def ingest_file(self, file_path):
@@ -86,39 +69,62 @@ class DocumentIngestor:
             raise ValueError(f"Tipo de arquivo não suportado: {file_path.suffix}")
         
         chunks = self.chunker.chunk_text(text, metadata)
-        embeddings = self.embedder.embed_chunks(chunks)
-        
-        self._store_embeddings(embeddings)
+        chunks = self._assign_chunk_ids(chunks)
+        chunks = self._filter_existing_chunks(chunks)
+        if not chunks:
+            return 0
+        for c in chunks:
+            c["metadata"]["id"] = c["id"]
+        self.db.add_texts(
+            texts=[c["text"] for c in chunks],
+            metadatas=[c["metadata"] for c in chunks],
+            ids=[c["id"] for c in chunks]
+        )
         
         return len(chunks)
     
     def ingest_url(self, url):
         text, metadata = self.parse_url(url)
         chunks = self.chunker.chunk_text(text, metadata)
-        embeddings = self.embedder.embed_chunks(chunks)
-        
-        self._store_embeddings(embeddings)
+        chunks = self._assign_chunk_ids(chunks)
+        chunks = self._filter_existing_chunks(chunks)
+        if not chunks:
+            return 0
+        for c in chunks:
+            c["metadata"]["id"] = c["id"]
+        self.db.add_texts(
+            texts=[c["text"] for c in chunks],
+            metadatas=[c["metadata"] for c in chunks],
+            ids=[c["id"] for c in chunks]
+        )
         
         return len(chunks)
-    
-    def _store_embeddings(self, embeddings):
-        ids = []
-        vectors = []
-        metadatas = []
-        documents = []
-        
-        for emb in embeddings:
-            ids.append(str(uuid.uuid4()))
-            vectors.append(emb["embedding"])
-            metadatas.append(emb["metadata"])
-            documents.append(emb["text"])
-        
-        self.collection.add(
-            embeddings=vectors,
-            metadatas=metadatas,
-            documents=documents,
-            ids=ids
-        )
+
+    def _assign_chunk_ids(self, chunks):
+        assigned = []
+        for chunk in chunks:
+            metadata = chunk["metadata"]
+            source = metadata.get("source", "unknown")
+            index = metadata.get("chunk_index")
+            text = chunk["text"]
+            base = f"{source}|{index}|{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+            chunk_with_id = {
+                **chunk,
+                "id": base
+            }
+            assigned.append(chunk_with_id)
+        return assigned
+
+    def _filter_existing_chunks(self, chunks):
+        if not chunks:
+            return []
+        ids = [c["id"] for c in chunks]
+        try:
+            existing = self.db.get(ids=ids)
+            existing_ids = set(existing.get("ids", [])) if existing else set()
+        except Exception:
+            existing_ids = set()
+        return [c for c in chunks if c["id"] not in existing_ids]
 
 if __name__ == "__main__":
     ingestor = DocumentIngestor()

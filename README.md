@@ -132,3 +132,64 @@ MIT License - feel free to use this for your own projects.
 <p align="center">
   <strong>Built with ❤️ for intelligent document discovery</strong>
 </p>
+
+## 🧩 API (Q&A síncrona)
+
+- Endpoint: `POST /v1/ask`
+- Headers: `Content-Type: application/json`, `X-API-Key` (opcional)
+- Corpo da requisição:
+
+```json
+{
+  "question": "Como escrever um ofício?",
+  "top_k": 4,
+  "filters": { "tipo_documento": "manual", "source": "manual_redacao.pdf" },
+  "prompt_preset": "default"
+}
+```
+
+- Resposta 200 (exemplo):
+
+```json
+{
+  "answer": "...",
+  "sources": [
+    { "id": "chunk-123", "source": "manual_redacao.pdf", "page": 4, "score": 0.83, "snippet": "Solicito a Vossa Excelência..." }
+  ],
+  "model": "gpt-4o-mini",
+  "usage": { "prompt_tokens": 1234, "completion_tokens": 210, "total_tokens": 1444, "cost_estimated": 0.0007 },
+  "latency_ms": 2310,
+  "request_id": "req_abc123"
+}
+```
+
+- Erros:
+  - 400 input inválido
+  - 401 não autorizado
+  - 429 limite de requisições
+  - 500/502 erro interno/upstream
+  - 504 timeout
+  - Formato: `{ "error": "code", "message": "...", "request_id": "..." }`
+
+## 📝 Observações
+
+- Sem OCR: PDFs escaneados podem não extrair texto
+
+## 🔜 Próximos passos
+
+- Implementar endpoint FastAPI `POST /v1/ask` reaproveitando `src/query.py`
+- Extrair `retrieve(question, top_k, filters)` para reuso entre CLI e API
+- Implementar prompting com presets (`default`, `conciso`, `citacoes_estritas`)
+- Validação de entrada (tamanho de pergunta, filtros) e mapeamento de erros
+- Timeouts e retries curtos para OpenAI
+- Logs estruturados (com `request_id`) e métricas básicas (latência, tokens)
+- Testes: unitários (schemas/prompt), integração (Chroma real, LLM mock), E2E pequeno
+
+## 📝 Tarefas
+
+- [ ] Estruturar `src/api/` (`main.py`, `schemas.py`, `service_retrieval.py`, `service_llm.py`, `prompting.py`, `auth.py` opcional)
+- [ ] Implementar rota `POST /v1/ask`
+- [ ] Validar variáveis de ambiente e limites (`DEFAULT_TOP_K`, `MAX_CONTEXT_CHARS`)
+- [ ] Rate limit simples por chave (`X-API-Key`)
+- [ ] Observabilidade: `request_id`, latência end-to-end, contagem de tokens
+- [ ] Documentar comando de execução da API após implementação

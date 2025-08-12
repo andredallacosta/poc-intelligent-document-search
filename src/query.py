@@ -1,39 +1,42 @@
+import os
+from dotenv import load_dotenv
 import chromadb
 from chromadb.config import Settings
-from embedder import Embedder
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
 
 class DocumentQuery:
     def __init__(self, db_path="./data/chroma_db"):
-        self.client = chromadb.PersistentClient(
+        load_dotenv()
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=os.getenv("OPENAI_API_KEY"))
+        client = chromadb.PersistentClient(
             path=db_path,
             settings=Settings(anonymized_telemetry=False)
         )
-        
-        self.collection = self.client.get_collection(name="documents")
-        self.embedder = Embedder()
+        self.db = Chroma(
+            collection_name="documents",
+            client=client,
+            persist_directory=db_path,
+            embedding_function=self.embeddings
+        )
     
     def search(self, query, n_results=5, filters=None):
-        query_embedding = self.embedder.embed_text(query)
-        
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=filters
+        docs_scores = self.db.similarity_search_with_relevance_scores(
+            query,
+            k=n_results,
+            filter=filters
         )
-        
-        return self._format_results(results)
+        return self._format_results(docs_scores)
     
-    def _format_results(self, results):
+    def _format_results(self, docs_scores):
         formatted = []
-        
-        for i in range(len(results['documents'][0])):
+        for doc, score in docs_scores:
             formatted.append({
-                "text": results['documents'][0][i],
-                "metadata": results['metadatas'][0][i],
-                "distance": results['distances'][0][i],
-                "id": results['ids'][0][i]
+                "text": doc.page_content,
+                "metadata": doc.metadata,
+                "distance": 1 - float(score),
+                "id": doc.metadata.get("id")
             })
-        
         return formatted
 
 if __name__ == "__main__":
@@ -48,3 +51,9 @@ if __name__ == "__main__":
         print(f"   Similaridade: {1 - result['distance']:.3f}")
         print(f"   Texto: {result['text'][:200]}...")
         print("-" * 50)
+
+        with open("results.txt", "a") as f:
+            f.write(f"{i}. Fonte: {result['metadata'].get('source', 'N/A')}\n")
+            f.write(f"   Similaridade: {1 - result['distance']:.3f}\n")
+            f.write(f"   Texto: {result['text']}...\n")
+            f.write("-" * 50 + "\n")
