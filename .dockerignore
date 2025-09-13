@@ -1,0 +1,39 @@
+# Ignore everything first
+*
+
+# Then allow only what we need
+!interface/
+!application/
+!domain/
+!infrastructure/
+!shared/
+!storage/
+!documents/
+!pyproject.toml
+!requirements.txt
+
+# Ignore Python cache and dev files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/*.so
+**/.pytest_cache/
+**/.coverage
+**/.env
+**/.venv/
+**/venv/
+
+# Ignore IDE and OS files
+**/.idea/
+**/.vscode/
+**/.DS_Store
+**/Thumbs.db
+
+# Ignore git and docker files
+.git/
+.gitignore
+Dockerfile*
+docker-compose*.yml
+README.md

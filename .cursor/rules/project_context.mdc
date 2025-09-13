@@ -2,127 +2,186 @@
 alwaysApply: true
 ---
 
-# POC - Vector Database para Documentos
+# Intelligent Document Search API v2.0 - Clean Architecture
 
-## 🎯 OBJETIVO
+## 🎯 PROJECT OVERVIEW
 
-Criar uma POC para ingestão e indexação de documentos diversos (PDF, DOCX, links) transformando-os em trechos úteis e buscáveis semanticamente para uso como contexto de IA.
+**Production-ready** conversational AI system with RAG (Retrieval-Augmented Generation) using GPT-4o-mini and Clean Architecture principles.
 
-## 📋 ARQUITETURA DEFINIDA
+### **Current Status** ✅
 
-### Pipeline de Ingestão (Python)
+- ✅ Clean Architecture with Domain-Driven Design
+- ✅ Conversational AI with session management  
+- ✅ RAG pipeline: ChromaDB + OpenAI embeddings
+- ✅ FastAPI with dependency injection
+- ✅ Docker containerization optimized
+- ✅ Rate limiting and monitoring
 
-- **Parsing**: unstructured + python-docx + trafilatura  
-- **Chunking**: LangChain (chunking semântico)
-- **Embeddings**: OpenAI text-embedding-3-small
-- **Vector DB**: Chroma (local, SQLite, zero config)
-
-### API de Consumo (Node.js - futuro)
-
-- Consultas ao Chroma + chamadas para LLM
-
-## 🗂 ESTRUTURA DO PROJETO
+## 🏗️ CLEAN ARCHITECTURE STRUCTURE
 
 ```
-/home/andre/Projects/poc-intelligent-document-search/
-├── documents/           # PDFs, DOCs de entrada
-├── src/
-│   ├── ingest.py       # Pipeline de ingestão
-│   ├── chunker.py      # Lógica de chunking
-│   ├── embedder.py     # Geração de embeddings
-│   └── query.py        # Busca e retrieval
-├── data/
-│   └── chroma_db/      # Base vetorial local
-├── requirements.txt
-└── README.md
+📁 intelligent-document-search/
+├── 🌐 interface/              # Interface Layer (FastAPI)
+│   ├── api/v1/endpoints/      # REST endpoints
+│   ├── schemas/               # Pydantic models
+│   ├── dependencies/          # DI container
+│   └── main.py               # Entry point
+│
+├── 🎯 application/            # Application Layer (Use Cases)
+│   ├── use_cases/            # Business use cases
+│   ├── dto/                  # Data Transfer Objects
+│   └── interfaces/           # Service contracts
+│
+├── 💎 domain/                # Domain Layer (Business Logic)
+│   ├── entities/             # Core entities
+│   ├── value_objects/        # Domain values
+│   ├── services/             # Domain services
+│   ├── repositories/         # Repository interfaces
+│   └── exceptions/           # Domain exceptions
+│
+├── 🔧 infrastructure/        # Infrastructure Layer
+│   ├── repositories/         # Repository implementations
+│   ├── external/             # External clients
+│   ├── processors/           # Document processing
+│   └── config/               # Configuration
+│
+├── 🛠️ shared/               # Shared utilities
+├── 🧪 tests/                # Test organization
+├── 📦 storage/               # Data storage
+└── 📄 documents/             # Input documents
 ```
 
-## 🔄 FLUXO DE INGESTÃO
+## 🚀 CORE FUNCTIONALITY
 
-### 1. Upload + Parsing
+### **Main API**
 
-**Entrada**: arquivos .pdf, .docx, .doc, links
-**Saída**:
-
-```json
+```bash
+# Chat with documents
+POST /api/v1/chat/ask
 {
-  "text": "Solicito a Vossa Excelência a emissão do documento XYZ...",
-  "metadata": {
-    "source": "manual_redacao.pdf", 
-    "page": 4,
-    "tipo_documento": "manual",
-    "assunto": "estrutura do ofício"
-  }
+  "message": "Como escrever um ofício oficial?",
+  "session_id": null  # or existing session UUID
 }
+
+# System endpoints
+GET /              # API info
+GET /health        # Health check
+GET /docs          # Interactive docs
 ```
 
-### 2. Chunking
+### **Key Components**
 
-- **Tamanho**: 300-500 tokens por chunk
-- **Estratégia**: Semântico (por parágrafo/sentença lógica)
-- **Overlapping**: 50 tokens de sobreposição
-- **Especial**: Para docs jurídicos, considerar quebras por artigo/inciso
+- **Entities**: Document, ChatSession, Message, DocumentChunk, Embedding
+- **Use Cases**: ChatWithDocumentsUseCase (main conversation flow)
+- **Services**: ChatService, SearchService, DocumentService
+- **Infrastructure**: ChromaVectorRepository, RedisSessionRepository, OpenAIClient
 
-### 3. Embeddings
+## 🔧 TECHNICAL STACK
 
-- **Modelo**: OpenAI text-embedding-3-small
-- **Saída**: Vetor + metadados para cada chunk
+### **Core Technologies**
 
-### 4. Armazenamento
+- **FastAPI**: Async web framework
+- **ChromaDB**: Vector database for embeddings
+- **Redis**: Session storage
+- **OpenAI**: GPT-4o-mini + text-embedding-3-small
+- **Docker**: Containerization with optimized builds
 
-- **Chroma**: Banco vetorial local (SQLite)
-- **Metadados**: Filtros por tipo, página, documento, etc.
+### **Architecture Patterns**
 
-## 🎛 DECISÕES TÉCNICAS
+- **Clean Architecture**: Dependency inversion
+- **Repository Pattern**: Data access abstraction
+- **Dependency Injection**: Testable components
+- **Use Case Pattern**: Application service layer
 
-### Por que Python para ingestão?
+## 🛠️ DEVELOPMENT WORKFLOW
 
-- Melhores bibliotecas para processamento de documentos
-- LangChain maduro para chunking semântico
-- Ecossistema de IA mais robusto
+### **Quick Start**
 
-### Por que Chroma?
+```bash
+# Docker (recommended)
+docker-compose up -d
 
-- Zero setup (pip install chromadb)
-- Persistência local em arquivo
-- Fácil migração futura para Weaviate/Qdrant
-- Suporte nativo a filtros por metadata
+# Local development (ALWAYS activate venv first)
+source .venv/bin/activate  # MANDATORY STEP
+python -m interface.main
 
-### Por que OpenAI Embeddings?
+# Health check
+curl http://localhost:8000/health
+```
 
-- Custo x performance equilibrado
-- API estável e documentada
-- Compatibilidade com diversos vector DBs
+### **Adding Features**
 
-## 🚧 PRÓXIMOS PASSOS
+1. **Domain First**: Define entities and business rules
+2. **Use Cases**: Implement application logic
+3. **Infrastructure**: Add external integrations
+4. **Interface**: Create API endpoints
+5. **Tests**: Unit → Integration → E2E
 
-1. ~~Implementar pipeline básico de ingestão~~ ✅ CONCLUÍDO
-2. Testar com documentos reais do usuário
-3. ~~Implementar busca e retrieval~~ ✅ CONCLUÍDO  
-4. Avaliar qualidade das respostas
-5. API Node.js para consumo
+### **Docker Optimization**
 
-## 🎯 PRONTO PARA TESTE
+- Uses `.dockerignore` for clean builds
+- Single `COPY . .` instead of multiple COPYs
+- Removed unnecessary PyTorch (sentence-transformers)
+- Build time: ~180s (was 300s+)
 
-O pipeline está implementado e funcional. Para testar:
+## 📋 CONFIGURATION
 
-1. Criar arquivo `.env` com `OPENAI_API_KEY`
-2. Instalar dependências: `pip install -r requirements.txt`
-3. Colocar documentos na pasta `documents/`
-4. Executar: `python src/ingest.py` (ingestão)
-5. Executar: `python src/query.py` (busca)
+### **Key Environment Variables**
 
-## 💡 NOTAS IMPORTANTES
+```bash
+# Required
+OPENAI_API_KEY=your_key_here
 
-- Usuário é iniciante em vector databases
-- Chunking semântico será implementado conforme necessário
-- LLM de consumo será definido depois (provavelmente GPT-4o-mini)
-- Avaliação de qualidade será implementada posteriormente
+# Optional (with defaults)
+API_HOST=0.0.0.0
+API_PORT=8000
+REDIS_HOST=localhost
+CHUNK_SIZE=500
+MAX_MESSAGES_PER_SESSION=100
+```
 
-## 🚫 REGRAS DE DESENVOLVIMENTO
+## 🧪 TESTING STRATEGY
 
-- **NÃO adicionar comentários no código**
-- **NÃO criar ou atualizar README automaticamente**
-- **NÃO adicionar explicações em arquivos**
-- **Gerar código e arquivos SOMENTE quando o usuário autorizar explicitamente**
-- **NÃO concordar sempre com o usuário, sugerir mudanças e alertar sobre possíveis problemas**
+```
+tests/
+├── unit/          # Fast, isolated (domain/application/infrastructure)
+├── integration/   # Service integration (api/repositories)
+└── e2e/          # Full system tests
+```
+
+**Testing Principles**:
+
+- **Domain**: Pure unit tests, no mocks
+- **Application**: Mock infrastructure dependencies
+- **Infrastructure**: Integration tests with real services
+- **API**: End-to-end tests with full stack
+
+## 🚨 DEVELOPMENT RULES
+
+### **CRITICAL PRINCIPLES**
+
+1. **Domain Independence**: Domain layer has NO external dependencies
+2. **Dependency Direction**: Always inward (Interface → Application → Domain)
+3. **Interface Segregation**: Small, focused interfaces
+4. **Single Responsibility**: Each class has one reason to change
+5. **Open/Closed**: Open for extension, closed for modification
+
+### **CODE STANDARDS**
+
+- **ALWAYS activate venv first**: `source .venv/bin/activate` before any Python command
+- **No comments in code** (self-documenting preferred)
+- **No automatic README updates** (manual only)
+- **No explanations in files** (code should be clear)
+- **Generate code only when explicitly requested**
+- **Always question requirements** and suggest improvements
+
+### **TESTING REQUIREMENTS**
+
+- **Domain**: Pure unit tests, no mocks
+- **Application**: Mock infrastructure dependencies
+- **Infrastructure**: Integration tests with real services
+- **API**: End-to-end tests with full stack
+
+---
+
+This represents a **complete evolution** from POC to production-ready system following Clean Architecture and modern Python practices.
