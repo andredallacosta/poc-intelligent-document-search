@@ -22,7 +22,8 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ENVIRONMENT=development
     volumes:
