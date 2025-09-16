@@ -38,11 +38,11 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Redis connection error: {e}")
     
     try:
-        chroma_client = container.get_chroma_client()
-        count = await chroma_client.count()
-        logger.info(f"ChromaDB connection successful - {count} embeddings loaded")
+        vector_repo = container.get_vector_repository()
+        count = await vector_repo.count_embeddings()
+        logger.info(f"Vector database connection successful - {count} embeddings loaded")
     except Exception as e:
-        logger.error(f"ChromaDB connection error: {e}")
+        logger.error(f"Vector database connection error: {e}")
     
     yield
     

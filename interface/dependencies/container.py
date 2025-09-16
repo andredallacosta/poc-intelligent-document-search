@@ -13,7 +13,13 @@ from infrastructure.repositories.redis_session_repository import (
     RedisSessionRepository, 
     RedisMessageRepository
 )
+from domain.repositories.vector_repository import VectorRepository
+from domain.repositories.document_repository import DocumentRepository, DocumentChunkRepository
 from infrastructure.repositories.chroma_vector_repository import ChromaVectorRepository
+from infrastructure.repositories.memory_document_repository import (
+    MemoryDocumentRepository, 
+    MemoryDocumentChunkRepository
+)
 
 
 class Container:
@@ -73,12 +79,27 @@ class Container:
         return self._instances["message_repository"]
     
     @lru_cache(maxsize=1)
-    def get_vector_repository(self) -> ChromaVectorRepository:
+    def get_vector_repository(self) -> VectorRepository:
+        # 🚨 TEMPORÁRIO - SUBSTITUIR por PostgresVectorRepository após migração
         if "vector_repository" not in self._instances:
             self._instances["vector_repository"] = ChromaVectorRepository(
                 chroma_client=self.get_chroma_client()
             )
         return self._instances["vector_repository"]
+    
+    @lru_cache(maxsize=1)
+    def get_document_repository(self) -> DocumentRepository:
+        # 🚨 TEMPORÁRIO - SUBSTITUIR por PostgresDocumentRepository após migração
+        if "document_repository" not in self._instances:
+            self._instances["document_repository"] = MemoryDocumentRepository()
+        return self._instances["document_repository"]
+    
+    @lru_cache(maxsize=1)
+    def get_document_chunk_repository(self) -> DocumentChunkRepository:
+        # 🚨 TEMPORÁRIO - SUBSTITUIR por PostgresDocumentChunkRepository após migração
+        if "document_chunk_repository" not in self._instances:
+            self._instances["document_chunk_repository"] = MemoryDocumentChunkRepository()
+        return self._instances["document_chunk_repository"]
     
     @lru_cache(maxsize=1)
     def get_chat_service(self) -> ChatService:
@@ -133,3 +154,11 @@ def get_chat_service() -> ChatService:
 
 def get_search_service() -> SearchService:
     return container.get_search_service()
+
+
+def get_document_repository() -> DocumentRepository:
+    return container.get_document_repository()
+
+
+def get_document_chunk_repository() -> DocumentChunkRepository:
+    return container.get_document_chunk_repository()
