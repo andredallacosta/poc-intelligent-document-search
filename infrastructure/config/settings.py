@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 from infrastructure.config.database_settings import database_settings
@@ -74,11 +74,12 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
-        extra = "ignore"
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
     @field_validator("debug", mode="before")
     @classmethod

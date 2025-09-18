@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ChatRequest(BaseModel):
@@ -13,14 +13,15 @@ class ChatRequest(BaseModel):
         default_factory=dict, description="Additional metadata"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "Como escrever um ofício oficial?",
                 "session_id": None,
                 "metadata": {},
             }
         }
+    )
 
 
 class DocumentSource(BaseModel):
@@ -50,8 +51,8 @@ class ChatResponse(BaseModel):
         None, description="Token usage statistics"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "response": "Para escrever um ofício oficial, você deve seguir a estrutura padrão...",
                 "session_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -78,6 +79,7 @@ class ChatResponse(BaseModel):
                 },
             }
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -85,11 +87,12 @@ class ErrorResponse(BaseModel):
     detail: Optional[str] = Field(None, description="Detailed error information")
     error_code: Optional[str] = Field(None, description="Error code")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": "Rate limit exceeded",
                 "detail": "Maximum requests per day reached",
                 "error_code": "RATE_LIMIT_EXCEEDED",
             }
         }
+    )
