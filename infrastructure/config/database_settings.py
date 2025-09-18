@@ -16,16 +16,24 @@ class DatabaseSettings(BaseSettings):
     postgres_pool_timeout: int = Field(default=30, env="POSTGRES_POOL_TIMEOUT")
     postgres_pool_recycle: int = Field(default=3600, env="POSTGRES_POOL_RECYCLE")
     
-    # SSL Settings
-    postgres_ssl_mode: str = Field(default="prefer", env="POSTGRES_SSL_MODE")
+    # SSL Settings (disable para desenvolvimento local)
+    postgres_ssl_mode: str = Field(default="disable", env="POSTGRES_SSL_MODE")
     
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-            f"?sslmode={self.postgres_ssl_mode}"
-        )
+        # Para desenvolvimento local sem SSL
+        if self.postgres_ssl_mode == "disable":
+            return (
+                f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+        else:
+            # Para produção com SSL (asyncpg aceita ssl=true)
+            return (
+                f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+                f"?ssl=true"
+            )
     
     @property
     def sync_database_url(self) -> str:

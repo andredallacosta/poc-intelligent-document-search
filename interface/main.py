@@ -38,16 +38,45 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Redis connection error: {e}")
     
     try:
+        # Initialize PostgreSQL connection
+        from infrastructure.database.connection import db_connection
+        db_connection.initialize()
+        
+        # Test connection with a simple query
+        from sqlalchemy import text
+        async for session in db_connection.get_session():
+            result = await session.execute(text("SELECT 1"))
+            if result.scalar() == 1:
+                logger.info("PostgreSQL connection successful")
+            break
+            
+        # Test vector repository
         vector_repo = container.get_vector_repository()
-        count = await vector_repo.count_embeddings()
-        logger.info(f"Vector database connection successful - {count} embeddings loaded")
+        if hasattr(vector_repo, 'count_embeddings'):
+            count = await vector_repo.count_embeddings()
+            logger.info(f"PostgreSQL vector database - {count} embeddings loaded")
+        else:
+            logger.info("PostgreSQL repositories initialized successfully")
     except Exception as e:
-        logger.error(f"Vector database connection error: {e}")
+        logger.error(f"Database connection error: {e}")
+        # Fallback to ChromaDB for now
+        try:
+            chroma_client = container.get_chroma_client()
+            count = await chroma_client.count()
+            logger.info(f"ChromaDB fallback connection successful - {count} embeddings loaded")
+        except Exception as fallback_error:
+            logger.error(f"Fallback connection also failed: {fallback_error}")
     
     yield
     
     # Shutdown
     logger.info("Shutting down...")
+    try:
+        from infrastructure.database.connection import db_connection
+        await db_connection.close()
+    except Exception as e:
+        logger.warning(f"Error closing database connection: {e}")
+    
     await container.close_connections()
 
 
@@ -105,17 +134,57 @@ async def health_check():
         redis_client = container.get_redis_client()
         redis_healthy = await redis_client.ping()
         
-        # Test ChromaDB connection
-        chroma_client = container.get_chroma_client()
-        embedding_count = await chroma_client.count()
+        # Test database connections
+        postgres_healthy = False
+        chroma_healthy = False
+        embedding_count = 0
+        database_type = "unknown"
+        
+        # Try PostgreSQL first
+        try:
+            from infrastructure.database.connection import db_connection
+            from sqlalchemy import text
+            async for session in db_connection.get_session():
+                result = await session.execute(text("SELECT 1"))
+                postgres_healthy = result.scalar() == 1
+                database_type = "postgresql"
+                break
+                
+            # Count PostgreSQL embeddings if available
+            if postgres_healthy:
+                try:
+                    # TODO: Implementar count no PostgresVectorRepository
+                    embedding_count = 0  # Placeholder
+                except:
+                    pass
+                    
+        except Exception as pg_error:
+            logger.warning(f"PostgreSQL connection failed: {pg_error}")
+            
+            # Fallback to ChromaDB
+            try:
+                chroma_client = container.get_chroma_client()
+                embedding_count = await chroma_client.count()
+                chroma_healthy = True
+                database_type = "chromadb_fallback"
+            except Exception as chroma_error:
+                logger.warning(f"ChromaDB fallback also failed: {chroma_error}")
+                database_type = "none"
+        
+        # Determine overall system health
+        system_healthy = redis_healthy and (postgres_healthy or chroma_healthy)
         
         return {
-            "status": "healthy",
+            "status": "healthy" if system_healthy else "degraded",
             "version": settings.app_version,
             "services": {
                 "redis": "healthy" if redis_healthy else "unhealthy",
-                "chromadb": "healthy",
-                "embedding_count": embedding_count
+                "database": {
+                    "type": database_type,
+                    "postgres": "healthy" if postgres_healthy else "unhealthy",
+                    "chromadb_fallback": "healthy" if chroma_healthy else "not_used",
+                    "embedding_count": embedding_count
+                }
             },
             "timestamp": time.time()
         }

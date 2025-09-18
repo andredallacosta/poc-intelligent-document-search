@@ -19,15 +19,24 @@ class DatabaseConnection:
             return
         
         # Create async engine with optimized settings
-        self._engine = create_async_engine(
-            settings.database_url,
-            echo=settings.debug,
-            poolclass=NullPool if settings.debug else None,
-            pool_size=10,
-            max_overflow=20,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-        )
+        if settings.debug:
+            # Debug mode: use NullPool (no pooling)
+            self._engine = create_async_engine(
+                settings.database_url,
+                echo=settings.debug,
+                poolclass=NullPool,
+                pool_pre_ping=True,
+            )
+        else:
+            # Production mode: use connection pooling
+            self._engine = create_async_engine(
+                settings.database_url,
+                echo=False,
+                pool_size=10,
+                max_overflow=20,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+            )
         
         # Create session factory
         self._session_factory = async_sessionmaker(

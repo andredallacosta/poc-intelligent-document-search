@@ -1,4 +1,27 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: poc-postgres
+    environment:
+      POSTGRES_DB: intelligent_document_search
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - poc-network
+
   redis:
     image: redis:7-alpine
     container_name: poc-redis
@@ -7,30 +30,18 @@ services:
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 3s
-      retries: 3
-
-  api:
-    build: .
-    container_name: poc-api
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ENVIRONMENT=development
-    volumes:
-      - .:/app
-      - /app/.venv  # Exclude venv from mount
-    restart: unless-stopped
-    command: uvicorn interface.main:app --host 0.0.0.0 --port 8000 --reload
+      retries: 5
+    networks:
+      - poc-network
 
 volumes:
+  postgres_data:
   redis_data:
+
+networks:
+  poc-network:
+    driver: bridge

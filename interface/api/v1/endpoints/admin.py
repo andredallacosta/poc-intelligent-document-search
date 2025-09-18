@@ -8,7 +8,11 @@ from domain.repositories.prefeitura_repository import PrefeituraRepository
 from domain.repositories.usuario_repository import UsuarioRepository
 from domain.value_objects.prefeitura_id import PrefeituraId
 from domain.value_objects.usuario_id import UsuarioId
-from domain.exceptions.business_exceptions import BusinessRuleViolationError
+from domain.exceptions.business_exceptions import (
+    BusinessRuleViolationError,
+    QuotaExceededException,
+    InvalidUserDataException
+)
 from interface.dependencies.container import (
     get_postgres_prefeitura_repository,
     get_postgres_usuario_repository
