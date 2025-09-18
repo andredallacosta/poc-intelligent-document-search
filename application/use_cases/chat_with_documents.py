@@ -36,7 +36,7 @@ class ChatWithDocumentsUseCase:
                 session = await self._chat_service.create_session()
 
             # Add user message to session
-            user_message = await self._chat_service.add_user_message(
+            await self._chat_service.add_user_message(
                 session_id=session.id,
                 content=request.message,
                 metadata=request.metadata,
@@ -132,16 +132,17 @@ class ChatWithDocumentsUseCase:
                 chunk = result.chunk
                 context_parts.append(f"{i}. {chunk.content[:200]}...")
 
-        system_message = f"""Você é um assistente especializado em responder perguntas baseadas em documentos.
+        system_message = f"""
+            Você é um assistente especializado em responder perguntas
+            baseadas em documentos.
+            {chr(10).join(context_parts) if context_parts else 'Nenhum documento relevante encontrado.'}
 
-{chr(10).join(context_parts) if context_parts else "Nenhum documento relevante encontrado."}
-
-Instruções:
-- Responda baseado nos documentos fornecidos
-- Cite as fontes quando relevante
-- Se não houver informação suficiente, diga isso claramente
-- Seja conciso e objetivo
-- Use linguagem natural e amigável"""
+            Instruções:
+            - Responda baseado nos documentos fornecidos
+            - Cite as fontes quando relevante
+            - Se não houver informação suficiente, diga isso claramente
+            - Seja conciso e objetivo
+            - Use linguagem natural e amigável"""
 
         messages.append({"role": "system", "content": system_message})
 

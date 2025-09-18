@@ -58,7 +58,7 @@ class PostgresSessionRepository(SessionRepository):
         self, limit: Optional[int] = None
     ) -> List[ChatSession]:
         """Busca sessões ativas"""
-        stmt = select(ChatSessionModel).where(ChatSessionModel.ativo == True)
+        stmt = select(ChatSessionModel).where(ChatSessionModel.ativo.is_(True))
         stmt = stmt.order_by(ChatSessionModel.atualizado_em.desc())
 
         if limit:

@@ -1,5 +1,9 @@
 from functools import lru_cache
 
+# FastAPI Dependencies
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from application.interfaces.llm_service import LLMServiceInterface
 from application.use_cases.chat_with_documents import ChatWithDocumentsUseCase
 from domain.services.chat_service import ChatService
@@ -106,10 +110,8 @@ class Container:
 # Global container instance
 container = Container()
 
-from fastapi import Depends
 
 # PostgreSQL Repository Dependencies
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def get_postgres_vector_repository(

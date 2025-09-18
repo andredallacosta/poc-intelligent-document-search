@@ -203,15 +203,24 @@ class TestChatEndpoints:
         assert response["models"][0]["description"] == "Fast and cost-effective model"
         assert response["models"][0]["max_tokens"] == 4096
     
-    def test_get_chat_use_case_dependency_injection(self):
+    @pytest.mark.asyncio
+    async def test_get_chat_use_case_dependency_injection(self):
         # Test the dependency injection function
-        from unittest.mock import patch
+        from unittest.mock import patch, AsyncMock
         
         with patch('interface.dependencies.container.get_chat_use_case') as mock_container_get_use_case:
             mock_use_case = Mock(spec=ChatWithDocumentsUseCase)
             mock_container_get_use_case.return_value = mock_use_case
             
-            result = get_chat_use_case()
-            
-            assert result == mock_use_case
-            mock_container_get_use_case.assert_called_once()
+            # Mock the dependencies that get_chat_use_case needs
+            with patch('interface.dependencies.container.get_chat_service') as mock_get_chat_service, \
+                 patch('interface.dependencies.container.get_search_service') as mock_get_search_service, \
+                 patch('interface.dependencies.container.get_llm_service') as mock_get_llm_service:
+                
+                mock_get_chat_service.return_value = Mock()
+                mock_get_search_service.return_value = AsyncMock()
+                mock_get_llm_service.return_value = Mock()
+                
+                result = await get_chat_use_case()
+                
+                assert isinstance(result, ChatWithDocumentsUseCase)

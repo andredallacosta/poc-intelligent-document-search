@@ -72,7 +72,7 @@ class PostgresPrefeituraRepository(PrefeituraRepository):
         self, limit: Optional[int] = None, offset: int = 0
     ) -> List[Prefeitura]:
         """Lista todas as prefeituras ativas"""
-        stmt = select(PrefeituraModel).where(PrefeituraModel.ativo == True)
+        stmt = select(PrefeituraModel).where(PrefeituraModel.ativo.is_(True))
         stmt = stmt.order_by(PrefeituraModel.nome)
 
         if limit:
@@ -166,7 +166,7 @@ class PostgresPrefeituraRepository(PrefeituraRepository):
     async def count_active(self) -> int:
         """Conta prefeituras ativas"""
         stmt = select(func.count(PrefeituraModel.id)).where(
-            PrefeituraModel.ativo == True
+            PrefeituraModel.ativo.is_(True)
         )
         result = await self._session.execute(stmt)
         return result.scalar()
@@ -180,7 +180,7 @@ class PostgresPrefeituraRepository(PrefeituraRepository):
             select(PrefeituraModel)
             .where(
                 and_(
-                    PrefeituraModel.ativo == True,
+                    PrefeituraModel.ativo.is_(True),
                     PrefeituraModel.quota_tokens > 0,
                     (
                         PrefeituraModel.tokens_consumidos
@@ -204,7 +204,7 @@ class PostgresPrefeituraRepository(PrefeituraRepository):
             select(PrefeituraModel)
             .where(
                 and_(
-                    PrefeituraModel.ativo == True,
+                    PrefeituraModel.ativo.is_(True),
                     PrefeituraModel.tokens_consumidos >= PrefeituraModel.quota_tokens,
                 )
             )

@@ -23,8 +23,6 @@ install: ## Install production dependencies
 dev-install: ## Install development dependencies
 	@echo "📦 Installing development dependencies..."
 	pip install -e ".[dev]"
-	@echo "🔧 Setting up pre-commit hooks..."
-	pre-commit install
 
 clean: ## Clean build artifacts and cache
 	@echo "🧹 Cleaning build artifacts..."

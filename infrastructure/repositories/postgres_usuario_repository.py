@@ -95,7 +95,7 @@ class PostgresUsuarioRepository(UsuarioRepository):
         self, limit: Optional[int] = None, offset: int = 0
     ) -> List[Usuario]:
         """Lista todos os usuários ativos"""
-        stmt = select(UsuarioModel).where(UsuarioModel.ativo == True)
+        stmt = select(UsuarioModel).where(UsuarioModel.ativo.is_(True))
         stmt = stmt.order_by(UsuarioModel.nome)
 
         if limit:
@@ -206,7 +206,7 @@ class PostgresUsuarioRepository(UsuarioRepository):
 
     async def count_active(self) -> int:
         """Conta usuários ativos"""
-        stmt = select(func.count(UsuarioModel.id)).where(UsuarioModel.ativo == True)
+        stmt = select(func.count(UsuarioModel.id)).where(UsuarioModel.ativo.is_(True))
         result = await self._session.execute(stmt)
         return result.scalar()
 
