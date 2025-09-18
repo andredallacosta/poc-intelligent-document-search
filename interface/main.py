@@ -1,19 +1,19 @@
+import logging
+import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-import logging
-import time
 
+from infrastructure.config.settings import settings
 from interface.api.v1.router import api_router
 from interface.dependencies.container import container
-from infrastructure.config.settings import settings
-
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 logger = logging.getLogger(__name__)
@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up Intelligent Document Search API v2.0")
-    
+
     # Create storage directories
     settings.create_directories()
-    
+
     # Test connections
     try:
         redis_client = container.get_redis_client()
@@ -36,47 +36,39 @@ async def lifespan(app: FastAPI):
             logger.info("Redis connection successful")
     except Exception as e:
         logger.warning(f"Redis connection error: {e}")
-    
+
     try:
         # Initialize PostgreSQL connection
         from infrastructure.database.connection import db_connection
+
         db_connection.initialize()
-        
+
         # Test connection with a simple query
         from sqlalchemy import text
+
         async for session in db_connection.get_session():
             result = await session.execute(text("SELECT 1"))
             if result.scalar() == 1:
                 logger.info("PostgreSQL connection successful")
             break
-            
-        # Test vector repository
-        vector_repo = container.get_vector_repository()
-        if hasattr(vector_repo, 'count_embeddings'):
-            count = await vector_repo.count_embeddings()
-            logger.info(f"PostgreSQL vector database - {count} embeddings loaded")
-        else:
-            logger.info("PostgreSQL repositories initialized successfully")
+
+        # PostgreSQL connection successful
+        logger.info("PostgreSQL repositories initialized successfully")
     except Exception as e:
         logger.error(f"Database connection error: {e}")
-        # Fallback to ChromaDB for now
-        try:
-            chroma_client = container.get_chroma_client()
-            count = await chroma_client.count()
-            logger.info(f"ChromaDB fallback connection successful - {count} embeddings loaded")
-        except Exception as fallback_error:
-            logger.error(f"Fallback connection also failed: {fallback_error}")
-    
+        logger.error("PostgreSQL connection failed - system will not function properly")
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down...")
     try:
         from infrastructure.database.connection import db_connection
+
         await db_connection.close()
     except Exception as e:
         logger.warning(f"Error closing database connection: {e}")
-    
+
     await container.close_connections()
 
 
@@ -88,7 +80,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -123,7 +115,7 @@ async def root():
         "version": settings.app_version,
         "status": "running",
         "docs_url": "/docs",
-        "api_prefix": settings.api_prefix
+        "api_prefix": settings.api_prefix,
     }
 
 
@@ -133,23 +125,24 @@ async def health_check():
         # Test Redis connection
         redis_client = container.get_redis_client()
         redis_healthy = await redis_client.ping()
-        
+
         # Test database connections
         postgres_healthy = False
-        chroma_healthy = False
         embedding_count = 0
         database_type = "unknown"
-        
+
         # Try PostgreSQL first
         try:
-            from infrastructure.database.connection import db_connection
             from sqlalchemy import text
+
+            from infrastructure.database.connection import db_connection
+
             async for session in db_connection.get_session():
                 result = await session.execute(text("SELECT 1"))
                 postgres_healthy = result.scalar() == 1
                 database_type = "postgresql"
                 break
-                
+
             # Count PostgreSQL embeddings if available
             if postgres_healthy:
                 try:
@@ -157,23 +150,14 @@ async def health_check():
                     embedding_count = 0  # Placeholder
                 except:
                     pass
-                    
+
         except Exception as pg_error:
             logger.warning(f"PostgreSQL connection failed: {pg_error}")
-            
-            # Fallback to ChromaDB
-            try:
-                chroma_client = container.get_chroma_client()
-                embedding_count = await chroma_client.count()
-                chroma_healthy = True
-                database_type = "chromadb_fallback"
-            except Exception as chroma_error:
-                logger.warning(f"ChromaDB fallback also failed: {chroma_error}")
-                database_type = "none"
-        
+            database_type = "none"
+
         # Determine overall system health
-        system_healthy = redis_healthy and (postgres_healthy or chroma_healthy)
-        
+        system_healthy = redis_healthy and postgres_healthy
+
         return {
             "status": "healthy" if system_healthy else "degraded",
             "version": settings.app_version,
@@ -182,21 +166,16 @@ async def health_check():
                 "database": {
                     "type": database_type,
                     "postgres": "healthy" if postgres_healthy else "unhealthy",
-                    "chromadb_fallback": "healthy" if chroma_healthy else "not_used",
-                    "embedding_count": embedding_count
-                }
+                    "embedding_count": embedding_count,
+                },
             },
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=503,
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": time.time()
-            }
+            content={"status": "unhealthy", "error": str(e), "timestamp": time.time()},
         )
 
 
@@ -211,14 +190,14 @@ async def app_info():
             "document_search": True,
             "session_management": True,
             "rate_limiting": True,
-            "contextual_retrieval": settings.use_contextual_retrieval
+            "contextual_retrieval": settings.use_contextual_retrieval,
         },
         "limits": {
             "max_messages_per_session": settings.max_messages_per_session,
             "max_daily_messages": settings.max_daily_messages,
             "chunk_size": settings.chunk_size,
-            "default_search_results": settings.default_search_results
-        }
+            "default_search_results": settings.default_search_results,
+        },
     }
 
 
@@ -230,18 +209,20 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": "An unexpected error occurred" if not settings.debug else str(exc)
-        }
+            "detail": (
+                "An unexpected error occurred" if not settings.debug else str(exc)
+            ),
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "interface.main:app",
         host=settings.api_host,
         port=settings.api_port,
         reload=settings.debug,
-        log_level=settings.log_level.lower()
+        log_level=settings.log_level.lower(),
     )

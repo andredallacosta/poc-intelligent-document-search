@@ -37,23 +37,23 @@ class Message:
     document_references: List[DocumentReference] = field(default_factory=list)
     metadata: Dict = field(default_factory=dict)
     created_at: datetime = None
-    
+
     def __post_init__(self):
         if self.id is None:
             self.id = uuid4()
         if self.created_at is None:
             self.created_at = datetime.utcnow()
-    
+
     @property
     def has_references(self) -> bool:
         return len(self.document_references) > 0
-    
+
     @property
     def reference_count(self) -> int:
         return len(self.document_references)
-    
+
     def add_document_reference(self, reference: DocumentReference) -> None:
         self.document_references.append(reference)
-    
+
     def get_references_by_source(self, source: str) -> List[DocumentReference]:
         return [ref for ref in self.document_references if ref.source == source]

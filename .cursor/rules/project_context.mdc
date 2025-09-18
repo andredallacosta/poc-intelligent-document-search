@@ -12,7 +12,8 @@ alwaysApply: true
 
 - ✅ Clean Architecture with Domain-Driven Design
 - ✅ Conversational AI with session management  
-- ✅ RAG pipeline: ChromaDB + OpenAI embeddings
+- ✅ RAG pipeline: PostgreSQL + pgvector + OpenAI embeddings
+- ✅ Multi-tenancy ready (Prefeitura, Usuario entities)
 - ✅ FastAPI with dependency injection
 - ✅ Docker containerization optimized
 - ✅ Rate limiting and monitoring
@@ -74,14 +75,14 @@ GET /docs          # Interactive docs
 - **Entities**: Document, ChatSession, Message, DocumentChunk, Embedding
 - **Use Cases**: ChatWithDocumentsUseCase (main conversation flow)
 - **Services**: ChatService, SearchService, DocumentService
-- **Infrastructure**: ChromaVectorRepository, RedisSessionRepository, OpenAIClient
+- **Infrastructure**: PostgresVectorRepository, PostgresSessionRepository, OpenAIClient
 
 ## 🔧 TECHNICAL STACK
 
 ### **Core Technologies**
 
 - **FastAPI**: Async web framework
-- **ChromaDB**: Vector database for embeddings
+- **PostgreSQL + pgvector**: Vector database for embeddings
 - **Redis**: Session storage
 - **OpenAI**: GPT-4o-mini + text-embedding-3-small
 - **Docker**: Containerization with optimized builds
@@ -132,6 +133,14 @@ curl http://localhost:8000/health
 # Required
 OPENAI_API_KEY=your_key_here
 
+# PostgreSQL (required for production)
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres123
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=intelligent_document_search
+POSTGRES_SSL_MODE=disable
+
 # Optional (with defaults)
 API_HOST=0.0.0.0
 API_PORT=8000
@@ -174,6 +183,26 @@ tests/
 - **No explanations in files** (code should be clear)
 - **Generate code only when explicitly requested**
 - **Always question requirements** and suggest improvements
+
+### **ENVIRONMENT CONFIGURATION (.env)**
+
+**CRITICAL**: The AI does **NOT** have access to the `.env` file by default.
+
+**Rules for .env management**:
+
+- **NEVER** assume .env values - always ask the user
+- **NEVER** try to read/write .env directly
+- **ALWAYS** ask user to add/modify/remove environment variables
+- **ALWAYS** ask user to confirm current .env values when debugging
+- When suggesting .env changes, provide exact variable names and values
+- User will manually update .env and confirm changes
+
+**Example interaction**:
+
+```
+❌ BAD: "I'll add POSTGRES_SSL_MODE=disable to your .env"
+✅ GOOD: "Please add this to your .env: POSTGRES_SSL_MODE=disable"
+```
 
 ### **TESTING REQUIREMENTS**
 

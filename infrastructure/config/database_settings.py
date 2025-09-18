@@ -9,16 +9,16 @@ class DatabaseSettings(BaseSettings):
     postgres_user: str = Field(default="postgres", env="POSTGRES_USER")
     postgres_password: str = Field(default="postgres", env="POSTGRES_PASSWORD")
     postgres_db: str = Field(default="intelligent_document_search", env="POSTGRES_DB")
-    
+
     # Connection Pool Settings
     postgres_pool_size: int = Field(default=10, env="POSTGRES_POOL_SIZE")
     postgres_max_overflow: int = Field(default=20, env="POSTGRES_MAX_OVERFLOW")
     postgres_pool_timeout: int = Field(default=30, env="POSTGRES_POOL_TIMEOUT")
     postgres_pool_recycle: int = Field(default=3600, env="POSTGRES_POOL_RECYCLE")
-    
+
     # SSL Settings (disable para desenvolvimento local)
     postgres_ssl_mode: str = Field(default="disable", env="POSTGRES_SSL_MODE")
-    
+
     @property
     def database_url(self) -> str:
         # Para desenvolvimento local sem SSL
@@ -34,7 +34,7 @@ class DatabaseSettings(BaseSettings):
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
                 f"?ssl=true"
             )
-    
+
     @property
     def sync_database_url(self) -> str:
         """URL síncrona para Alembic migrations"""
