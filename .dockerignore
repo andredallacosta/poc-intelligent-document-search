@@ -1,39 +1,98 @@
-# Ignore everything first
-*
+# .dockerignore para otimizar build da imagem
 
-# Then allow only what we need
-!interface/
-!application/
-!domain/
-!infrastructure/
-!shared/
-!storage/
-!documents/
-!pyproject.toml
-!requirements.txt
-
-# Ignore Python cache and dev files
-**/__pycache__/
-**/*.pyc
-**/*.pyo
-**/*.pyd
-**/.Python
-**/*.so
-**/.pytest_cache/
-**/.coverage
-**/.env
-**/.venv/
-**/venv/
-
-# Ignore IDE and OS files
-**/.idea/
-**/.vscode/
-**/.DS_Store
-**/Thumbs.db
-
-# Ignore git and docker files
-.git/
+# Git
+.git
 .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation build
+docs/_build/
+
+# Testing
+.tox/
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Docker
 Dockerfile*
 docker-compose*.yml
+.dockerignore
+
+# Deployment
+nginx/
+ssl/
+scripts/
+backups/
+
+# Development only
+.env.example
 README.md
+docs/
+tests/
+
+# ChromaDB storage (old)
+storage/
+
+# Alembic (migrations são aplicadas separadamente)
+alembic.ini

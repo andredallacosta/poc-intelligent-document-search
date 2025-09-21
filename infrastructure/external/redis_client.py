@@ -14,14 +14,20 @@ class RedisClient:
         db: int = 0,
         password: str = None,
         decode_responses: bool = True,
+        url: str = None,
     ):
-        self.redis = redis.Redis(
-            host=host,
-            port=port,
-            db=db,
-            password=password,
-            decode_responses=decode_responses,
-        )
+        if url:
+            # Use URL if provided
+            self.redis = redis.from_url(url, decode_responses=decode_responses)
+        else:
+            # Use individual parameters
+            self.redis = redis.Redis(
+                host=host,
+                port=port,
+                db=db,
+                password=password,
+                decode_responses=decode_responses,
+            )
 
     async def ping(self) -> bool:
         try:

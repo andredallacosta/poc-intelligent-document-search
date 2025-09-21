@@ -115,31 +115,48 @@ dev: ## Start the API server with auto-reload
 # DOCKER MANAGEMENT
 # =============================================================================
 
-docker-build: ## Build Docker image
+docker-build: ## 🐳 Build Docker image
 	@echo "🐳 Building Docker image..."
-	docker build -t intelligent-document-search:latest .
+	@./scripts/build.sh
 
-docker-up: ## Start all services with Docker Compose
-	@echo "🐳 Starting all services..."
-	docker-compose up -d
+docker-build-push: ## 🐳 Build and push Docker image
+	@echo "🐳 Building and pushing Docker image..."
+	@PUSH=true ./scripts/build.sh
+
+docker-up: ## 🐳 Start development environment with Docker
+	@echo "🐳 Starting development environment..."
+	@docker-compose up -d
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 10
-	@echo "✅ Services started!"
+	@echo "✅ Development environment started!"
 	@echo "🔗 API: http://localhost:8000"
-	@echo "📚 Docs: http://localhost:8000/docs"
+	@echo "🔗 Docs: http://localhost:8000/docs"
+	@echo "🔗 Queue: http://localhost:8000/api/v1/queue/info"
 
-docker-down: ## Stop all Docker services
-	@echo "🐳 Stopping all services..."
-	docker-compose down
+docker-down: ## 🛑 Stop Docker environment
+	@echo "🛑 Stopping development environment..."
+	@docker-compose down
 
-docker-logs: ## Show Docker logs
+docker-logs: ## 📋 Show Docker logs
 	@echo "📋 Showing Docker logs..."
-	docker-compose logs -f
+	@docker-compose logs -f
 
-docker-clean: ## Clean Docker containers and images
+docker-clean: ## 🧹 Clean Docker containers and images
 	@echo "🧹 Cleaning Docker resources..."
-	docker-compose down -v --remove-orphans
-	docker system prune -f
+	@docker-compose down -v --remove-orphans
+	@docker system prune -f
+
+docker-prod: ## 🚀 Start production environment
+	@echo "🚀 Starting production environment..."
+	@docker-compose -f docker-compose.prod.yml up -d
+	@echo "✅ Production environment started!"
+
+docker-prod-logs: ## 📋 Show production logs
+	@docker-compose -f docker-compose.prod.yml logs -f
+
+docker-prod-down: ## 🛑 Stop production environment
+	@echo "🛑 Stopping production environment..."
+	@docker-compose -f docker-compose.prod.yml down
 
 # =============================================================================
 # DATABASE MANAGEMENT
@@ -217,6 +234,63 @@ logs: ## Show application logs (if running with Docker)
 	docker-compose logs -f intelligent-document-search
 
 # =============================================================================
+# REDIS QUEUE MANAGEMENT
+# =============================================================================
+
+worker: ## 🔄 Start Redis worker for document processing
+	@echo "🔄 Starting Redis worker for document processing..."
+	@python worker.py
+
+worker-all: ## 🔄 Start Redis worker for all queues
+	@echo "🔄 Starting Redis worker for all queues..."
+	@python worker.py --all
+
+worker-cleanup: ## 🧹 Start Redis worker only for cleanup tasks
+	@echo "🧹 Starting Redis worker for cleanup tasks..."
+	@python worker.py --queues cleanup_tasks
+
+worker-verbose: ## 🔄 Start Redis worker with verbose logging
+	@echo "🔄 Starting Redis worker with verbose logging..."
+	@python worker.py --verbose
+
+queue-info: ## 📊 Show Redis queue information
+	@echo "📊 Redis Queue Information:"
+	@curl -s http://localhost:8000/api/v1/queue/info | python -m json.tool || echo "Start server first: make dev"
+
+queue-health: ## 🏥 Check Redis queue health
+	@echo "🏥 Redis Queue Health Check:"
+	@curl -s http://localhost:8000/api/v1/queue/health | python -m json.tool || echo "Start server first: make dev"
+
+cleanup-s3: ## 🗑️ Schedule S3 cleanup task
+	@echo "🗑️ Scheduling S3 cleanup task..."
+	@python scripts/cleanup_scheduler.py --s3-cleanup
+
+cleanup-orphaned: ## 🗑️ Schedule orphaned files cleanup
+	@echo "🗑️ Scheduling orphaned files cleanup..."
+	@python scripts/cleanup_scheduler.py --orphaned-files
+
+cleanup-daily: ## 🗑️ Schedule daily cleanup (S3 + orphaned)
+	@echo "🗑️ Scheduling daily cleanup..."
+	@python scripts/cleanup_scheduler.py --daily
+
+
+# =============================================================================
+# DEPLOYMENT & OPERATIONS
+# =============================================================================
+
+deploy: ## 🚀 Deploy to production
+	@echo "🚀 Deploying to production..."
+	@./scripts/deploy.sh
+
+backup: ## 💾 Create backup of critical data
+	@echo "💾 Creating backup..."
+	@./scripts/backup.sh
+
+health-check: ## 🏥 Check health of all services
+	@echo "🏥 Checking service health..."
+	@./scripts/health-check.sh
+
+# =============================================================================
 # SHORTCUTS
 # =============================================================================
 
@@ -224,3 +298,18 @@ up: docker-up ## Alias for docker-up
 down: docker-down ## Alias for docker-down
 restart: docker-down docker-up ## Restart all services
 logs-api: logs ## Alias for logs
+
+dev-full: docker-up ## 🔧 Start full development environment (Docker + API + Workers)
+	@echo "🔧 Full development environment ready!"
+
+prod-deploy: docker-build deploy ## 🚀 Build and deploy to production
+	@echo "🚀 Build and deploy completed!"
+
+status: ## 📊 Show status of all services
+	@echo "📊 Service Status:"
+	@echo ""
+	@echo "🐳 Docker Containers:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "Docker not running"
+	@echo ""
+	@echo "🏥 Health Check:"
+	@./scripts/health-check.sh 2>/dev/null || echo "Health check failed"

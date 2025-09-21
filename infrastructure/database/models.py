@@ -186,3 +186,63 @@ class MessageModel(Base):
         ),
         CheckConstraint("tokens_usados >= 0", name="check_tokens_positive"),
     )
+
+class FileUploadModel(Base):
+    __tablename__ = "file_upload"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    document_id = Column(UUID(as_uuid=True), nullable=False)
+    filename = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    content_type = Column(String(100), nullable=False)
+    s3_bucket = Column(String(63), nullable=True)
+    s3_key = Column(String(1024), nullable=True)
+    s3_region = Column(String(50), nullable=True)
+    upload_url = Column(Text, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    uploaded_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_file_upload_document_id", "document_id"),
+        Index("idx_file_upload_created", "created_at"),
+        CheckConstraint("file_size > 0", name="check_file_size_positive"),
+    )
+
+
+class DocumentProcessingJobModel(Base):
+    __tablename__ = "document_processing_job"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    document_id = Column(UUID(as_uuid=True), nullable=False)
+    upload_id = Column(UUID(as_uuid=True), nullable=False)
+    status = Column(String(50), nullable=False, default="uploaded")
+    current_step = Column(String(500), nullable=False, default="")
+    progress = Column(Integer, nullable=False, default=0)
+    chunks_processed = Column(Integer, nullable=False, default=0)
+    total_chunks = Column(Integer, nullable=False, default=0)
+    processing_time_seconds = Column(Integer, nullable=False, default=0)
+    s3_file_deleted = Column(Boolean, default=False)
+    duplicate_of = Column(UUID(as_uuid=True), nullable=True)
+    content_hash_algorithm = Column(String(20), nullable=True)
+    content_hash_value = Column(String(64), nullable=True)
+    error_message = Column(Text, nullable=True)
+    meta_data = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_processing_job_document_id", "document_id"),
+        Index("idx_processing_job_upload_id", "upload_id"),
+        Index("idx_processing_job_status", "status"),
+        Index("idx_processing_job_created", "created_at"),
+        CheckConstraint("progress >= 0 AND progress <= 100", name="check_progress_range"),
+        CheckConstraint("chunks_processed >= 0", name="check_chunks_processed_positive"),
+        CheckConstraint("total_chunks >= 0", name="check_total_chunks_positive"),
+        CheckConstraint("processing_time_seconds >= 0", name="check_processing_time_positive"),
+        CheckConstraint(
+            "status IN ('uploaded', 'extracting', 'checking_duplicates', 'chunking', 'embedding', 'completed', 'failed', 'duplicate')",
+            name="check_valid_status"
+        ),
+    )

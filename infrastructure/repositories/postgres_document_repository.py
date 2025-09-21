@@ -213,6 +213,17 @@ class PostgresDocumentRepository(DocumentRepository):
         stmt = select(func.count(DocumentoModel.id))
         result = await self._session.execute(stmt)
         return result.scalar()
+    
+    async def find_by_content_hash(self, content_hash: str) -> Optional[Document]:
+        """Busca documento por hash do conteúdo (para deduplicação)"""
+        stmt = select(DocumentoModel).where(DocumentoModel.file_hash == content_hash)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+
+        if not model:
+            return None
+
+        return self._model_to_entity(model)
 
     def _calculate_file_hash(self, content: str) -> str:
         """Calcula hash SHA256 do conteúdo"""

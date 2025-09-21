@@ -37,6 +37,11 @@ class DocumentRepository(ABC):
     @abstractmethod
     async def count(self) -> int:
         pass
+    
+    @abstractmethod
+    async def find_by_content_hash(self, content_hash: str) -> Optional[Document]:
+        """Busca documento por hash do conteúdo (para deduplicação)"""
+        pass
 
 
 class DocumentChunkRepository(ABC):

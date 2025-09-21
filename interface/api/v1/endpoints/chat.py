@@ -17,13 +17,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def get_chat_use_case() -> ChatWithDocumentsUseCase:
-    # This will be replaced with proper dependency injection
-    from interface.dependencies.container import get_chat_use_case
-
-    return get_chat_use_case()
-
-
 @router.post(
     "/ask",
     response_model=ChatResponse,
@@ -37,11 +30,16 @@ def get_chat_use_case() -> ChatWithDocumentsUseCase:
 )
 async def ask_question(
     request: ChatRequest,
-    chat_use_case: ChatWithDocumentsUseCase = Depends(get_chat_use_case),
 ):
     try:
         logger.info(f"Processing chat request: '{request.message[:50]}...'")
 
+        # Import dependencies from container
+        from interface.dependencies.container import create_chat_use_case
+        
+        # Create use case with proper dependencies
+        chat_use_case = await create_chat_use_case()
+        
         # Convert Pydantic model to DTO
         chat_request_dto = ChatRequestDTO(
             message=request.message,

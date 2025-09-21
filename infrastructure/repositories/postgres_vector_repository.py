@@ -92,11 +92,11 @@ class PostgresVectorRepository(VectorRepository):
                     1 - DocumentoEmbeddingModel.embedding.cosine_distance(query_vector)
                 ).label("similarity_score"),
             ).select_from(
-                DocumentoEmbeddingModel.join(
-                    DocumentoChunkModel,
+                DocumentoEmbeddingModel.__table__.join(
+                    DocumentoChunkModel.__table__,
                     DocumentoEmbeddingModel.chunk_id == DocumentoChunkModel.id,
                 ).join(
-                    DocumentoModel,
+                    DocumentoModel.__table__,
                     DocumentoChunkModel.documento_id == DocumentoModel.id,
                 )
             )
