@@ -289,12 +289,6 @@ async def _cleanup_orphaned_files(**kwargs) -> Dict[str, Any]:
         DocumentProcessingJobModel,
         FileUploadModel,
     )
-    from infrastructure.repositories.postgres_document_processing_job_repository import (
-        PostgresDocumentProcessingJobRepository,
-    )
-    from infrastructure.repositories.postgres_file_upload_repository import (
-        PostgresFileUploadRepository,
-    )
 
     async with get_async_session() as session:
         cutoff_time = datetime.utcnow() - timedelta(hours=1)
@@ -336,9 +330,6 @@ async def _cleanup_expired_uploads(**kwargs) -> Dict[str, Any]:
 
     from infrastructure.database.connection import get_async_session
     from infrastructure.database.models import FileUploadModel
-    from infrastructure.repositories.postgres_file_upload_repository import (
-        PostgresFileUploadRepository,
-    )
 
     async with get_async_session() as session:
         now = datetime.utcnow()

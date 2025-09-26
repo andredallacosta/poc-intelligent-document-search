@@ -1,9 +1,7 @@
 import logging
 from typing import List
 from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from application.dto.document_dto import (
     PresignedUploadRequestDTO,
     ProcessDocumentRequestDTO,
@@ -30,15 +28,6 @@ from interface.schemas.documents import (
     ProcessDocumentRequest,
     ProcessDocumentResponse,
 )
-
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/documents", tags=["documents"])
-
-
-# === DEPENDENCY INJECTION ===
-# Importar dependências do container
-
 from interface.dependencies.container import (
     get_create_presigned_upload_use_case,
     get_document_status_use_case,
@@ -46,7 +35,9 @@ from interface.dependencies.container import (
     get_process_document_use_case,
 )
 
-# === UPLOAD ENDPOINTS ===
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 @router.post(

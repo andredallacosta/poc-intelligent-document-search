@@ -1,5 +1,4 @@
 import logging
-from uuid import uuid4
 
 from application.dto.document_dto import (
     ProcessDocumentRequestDTO,

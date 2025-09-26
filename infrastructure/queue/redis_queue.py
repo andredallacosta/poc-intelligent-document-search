@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID
 
 from redis import Redis
-from rq import Queue, Retry, Worker
+from rq import Queue, Retry
 from rq.job import Job
 
 from infrastructure.config.settings import settings

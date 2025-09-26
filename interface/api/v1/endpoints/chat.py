@@ -1,9 +1,8 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from application.dto.chat_dto import ChatRequestDTO
-from application.use_cases.chat_with_documents import ChatWithDocumentsUseCase
 from domain.exceptions.chat_exceptions import (
     ChatError,
     InvalidMessageError,

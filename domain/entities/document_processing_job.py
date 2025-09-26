@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 from domain.exceptions.business_exceptions import BusinessRuleViolationError
 from domain.value_objects.content_hash import ContentHash
 from domain.value_objects.processing_status import ProcessingStatus
-from domain.value_objects.s3_key import S3Key
 
 
 @dataclass
