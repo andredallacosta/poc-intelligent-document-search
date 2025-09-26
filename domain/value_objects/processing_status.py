@@ -3,25 +3,25 @@ from enum import Enum
 
 class ProcessingStatus(Enum):
     """Status do processamento de documentos"""
-    
-    UPLOADED = "uploaded"           # Upload concluído, aguardando processamento
-    EXTRACTING = "extracting"       # Extraindo texto do documento
+
+    UPLOADED = "uploaded"  # Upload concluído, aguardando processamento
+    EXTRACTING = "extracting"  # Extraindo texto do documento
     CHECKING_DUPLICATES = "checking_duplicates"  # Verificando duplicatas
-    CHUNKING = "chunking"           # Dividindo em chunks
-    EMBEDDING = "embedding"         # Gerando embeddings
-    COMPLETED = "completed"         # Processamento concluído com sucesso
-    FAILED = "failed"              # Falha no processamento
-    DUPLICATE = "duplicate"         # Documento duplicado detectado
-    
+    CHUNKING = "chunking"  # Dividindo em chunks
+    EMBEDDING = "embedding"  # Gerando embeddings
+    COMPLETED = "completed"  # Processamento concluído com sucesso
+    FAILED = "failed"  # Falha no processamento
+    DUPLICATE = "duplicate"  # Documento duplicado detectado
+
     @property
     def is_final(self) -> bool:
         """Verifica se é um status final (não muda mais)"""
         return self in [
             ProcessingStatus.COMPLETED,
             ProcessingStatus.FAILED,
-            ProcessingStatus.DUPLICATE
+            ProcessingStatus.DUPLICATE,
         ]
-    
+
     @property
     def is_processing(self) -> bool:
         """Verifica se está em processamento"""
@@ -29,9 +29,9 @@ class ProcessingStatus(Enum):
             ProcessingStatus.EXTRACTING,
             ProcessingStatus.CHECKING_DUPLICATES,
             ProcessingStatus.CHUNKING,
-            ProcessingStatus.EMBEDDING
+            ProcessingStatus.EMBEDDING,
         ]
-    
+
     @property
     def progress_percentage(self) -> int:
         """Retorna porcentagem de progresso estimada"""
@@ -46,7 +46,7 @@ class ProcessingStatus(Enum):
             ProcessingStatus.DUPLICATE: 100,
         }
         return progress_map.get(self, 0)
-    
+
     @property
     def description(self) -> str:
         """Retorna descrição amigável do status"""

@@ -41,13 +41,13 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 from interface.dependencies.container import (
     get_create_presigned_upload_use_case,
-    get_process_document_use_case,
     get_document_status_use_case,
     get_job_status_use_case,
+    get_process_document_use_case,
 )
 
-
 # === UPLOAD ENDPOINTS ===
+
 
 @router.post(
     "/upload/presigned",
@@ -61,7 +61,9 @@ from interface.dependencies.container import (
 )
 async def create_presigned_upload(
     request: PresignedUploadRequest,
-    use_case: CreatePresignedUploadUseCase = Depends(get_create_presigned_upload_use_case),
+    use_case: CreatePresignedUploadUseCase = Depends(
+        get_create_presigned_upload_use_case
+    ),
 ):
     """Cria URL presigned para upload direto ao S3"""
     try:
@@ -74,10 +76,10 @@ async def create_presigned_upload(
             description=request.description,
             tags=request.tags or [],
         )
-        
+
         # Executar use case
         result = await use_case.execute(dto)
-        
+
         # Converter DTO para schema de resposta
         return PresignedUploadResponse(
             upload_url=result.upload_url,
@@ -87,7 +89,7 @@ async def create_presigned_upload(
             expires_at=result.expires_at,
             upload_fields=result.upload_fields,
         )
-        
+
     except BusinessRuleViolationError as e:
         logger.warning(f"Erro de validação no upload presigned: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -119,17 +121,17 @@ async def process_document(
             upload_id=request.upload_id,
             file_hash=request.file_hash,
         )
-        
+
         # Executar use case
         result = await use_case.execute(dto)
-        
+
         # Converter DTO para schema de resposta
         return ProcessDocumentResponse(
             job_id=result.job_id,
             status=result.status.value,
             estimated_time=result.estimated_time,
         )
-        
+
     except BusinessRuleViolationError as e:
         logger.warning(f"Erro de validação no processamento: {e}")
         if "não encontrado" in str(e).lower():
@@ -141,6 +143,7 @@ async def process_document(
 
 
 # === STATUS ENDPOINTS ===
+
 
 @router.get(
     "/{document_id}/status",
@@ -160,7 +163,7 @@ async def get_document_status(
     try:
         # Executar use case
         result = await use_case.execute(document_id)
-        
+
         # Converter DTO para schema de resposta
         return DocumentStatus(
             document_id=result.document_id,
@@ -176,7 +179,7 @@ async def get_document_status(
             error=result.error,
             estimated_time_remaining=result.estimated_time_remaining,
         )
-        
+
     except BusinessRuleViolationError as e:
         logger.warning(f"Erro ao obter status do documento: {e}")
         if "não encontrado" in str(e).lower():
@@ -205,7 +208,7 @@ async def get_job_status(
     try:
         # Executar use case
         result = await use_case.execute(job_id)
-        
+
         # Converter DTO para schema de resposta
         return DocumentStatus(
             document_id=result.document_id,
@@ -221,7 +224,7 @@ async def get_job_status(
             error=result.error,
             estimated_time_remaining=result.estimated_time_remaining,
         )
-        
+
     except BusinessRuleViolationError as e:
         logger.warning(f"Erro ao obter status do job: {e}")
         if "não encontrado" in str(e).lower():
@@ -233,6 +236,7 @@ async def get_job_status(
 
 
 # === SEARCH ENDPOINTS ===
+
 
 @router.post(
     "/search",
@@ -256,6 +260,7 @@ async def search_documents(request: DocumentSearchRequest):
 
 
 # === MANAGEMENT ENDPOINTS ===
+
 
 @router.get(
     "",
@@ -295,6 +300,7 @@ async def get_document(document_id: UUID):
 
 
 # === STATS ENDPOINTS ===
+
 
 @router.get(
     "/stats",

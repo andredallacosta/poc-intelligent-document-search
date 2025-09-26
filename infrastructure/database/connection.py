@@ -87,5 +87,5 @@ def get_async_session():
     """
     if not db_connection._initialized:
         db_connection.initialize()
-    
+
     return db_connection._session_factory()

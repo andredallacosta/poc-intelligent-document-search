@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from pydantic import Field, field_validator, ConfigDict
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
 
 from infrastructure.config.database_settings import database_settings
@@ -71,7 +71,9 @@ class Settings(BaseSettings):
     s3_bucket: str = Field(default="documents", env="S3_BUCKET")
     s3_region: str = Field(default="us-east-1", env="S3_REGION")
     s3_endpoint_url: Optional[str] = Field(default=None, env="S3_ENDPOINT_URL")
-    s3_public_endpoint_url: Optional[str] = Field(default=None, env="S3_PUBLIC_ENDPOINT_URL")
+    s3_public_endpoint_url: Optional[str] = Field(
+        default=None, env="S3_PUBLIC_ENDPOINT_URL"
+    )
 
     # Security
     cors_origins: list = Field(default=["*"], env="CORS_ORIGINS")
@@ -83,10 +85,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
 
     model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     @field_validator("debug", mode="before")

@@ -36,10 +36,10 @@ async def ask_question(
 
         # Import dependencies from container
         from interface.dependencies.container import create_chat_use_case
-        
+
         # Create use case with proper dependencies
         chat_use_case = await create_chat_use_case()
-        
+
         # Convert Pydantic model to DTO
         chat_request_dto = ChatRequestDTO(
             message=request.message,

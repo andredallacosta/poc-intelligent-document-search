@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 class PostgresFileUploadRepository(FileUploadRepository):
     """Implementação PostgreSQL do repositório de FileUpload"""
-    
+
     def __init__(self, session: AsyncSession):
         self.session = session
-    
+
     async def save(self, file_upload: FileUpload) -> None:
         """Salva um FileUpload"""
         try:
@@ -26,15 +26,19 @@ class PostgresFileUploadRepository(FileUploadRepository):
             stmt = select(FileUploadModel).where(FileUploadModel.id == file_upload.id)
             result = await self.session.execute(stmt)
             existing = result.scalar_one_or_none()
-            
+
             if existing:
                 # Atualizar existente
                 existing.filename = file_upload.filename
                 existing.file_size = file_upload.file_size
                 existing.content_type = file_upload.content_type
-                existing.s3_bucket = file_upload.s3_key.bucket if file_upload.s3_key else None
+                existing.s3_bucket = (
+                    file_upload.s3_key.bucket if file_upload.s3_key else None
+                )
                 existing.s3_key = file_upload.s3_key.key if file_upload.s3_key else None
-                existing.s3_region = file_upload.s3_key.region if file_upload.s3_key else None
+                existing.s3_region = (
+                    file_upload.s3_key.region if file_upload.s3_key else None
+                )
                 existing.upload_url = file_upload.upload_url
                 existing.expires_at = file_upload.expires_at
                 existing.uploaded_at = file_upload.uploaded_at
@@ -55,75 +59,77 @@ class PostgresFileUploadRepository(FileUploadRepository):
                     created_at=file_upload.created_at,
                 )
                 self.session.add(model)
-            
+
             await self.session.commit()
             logger.info(f"FileUpload salvo: {file_upload.id} - {file_upload.filename}")
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Erro ao salvar FileUpload {file_upload.id}: {e}")
             raise
-    
+
     async def find_by_id(self, upload_id: UUID) -> Optional[FileUpload]:
         """Busca FileUpload por ID"""
         try:
             stmt = select(FileUploadModel).where(FileUploadModel.id == upload_id)
             result = await self.session.execute(stmt)
             model = result.scalar_one_or_none()
-            
+
             if not model:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
             logger.error(f"Erro ao buscar FileUpload {upload_id}: {e}")
             return None
-    
+
     async def find_by_document_id(self, document_id: UUID) -> Optional[FileUpload]:
         """Busca FileUpload por document_id"""
         try:
-            stmt = select(FileUploadModel).where(FileUploadModel.document_id == document_id)
+            stmt = select(FileUploadModel).where(
+                FileUploadModel.document_id == document_id
+            )
             result = await self.session.execute(stmt)
             model = result.scalar_one_or_none()
-            
+
             if not model:
                 return None
-            
+
             return self._model_to_entity(model)
-            
+
         except Exception as e:
-            logger.error(f"Erro ao buscar FileUpload por document_id {document_id}: {e}")
+            logger.error(
+                f"Erro ao buscar FileUpload por document_id {document_id}: {e}"
+            )
             return None
-    
+
     async def delete(self, upload_id: UUID) -> bool:
         """Remove FileUpload"""
         try:
             stmt = delete(FileUploadModel).where(FileUploadModel.id == upload_id)
             result = await self.session.execute(stmt)
             await self.session.commit()
-            
+
             deleted = result.rowcount > 0
             if deleted:
                 logger.info(f"FileUpload removido: {upload_id}")
-            
+
             return deleted
-            
+
         except Exception as e:
             await self.session.rollback()
             logger.error(f"Erro ao remover FileUpload {upload_id}: {e}")
             return False
-    
+
     def _model_to_entity(self, model: FileUploadModel) -> FileUpload:
         """Converte model SQLAlchemy para entidade de domínio"""
         s3_key = None
         if model.s3_bucket and model.s3_key:
             s3_key = S3Key(
-                bucket=model.s3_bucket,
-                key=model.s3_key,
-                region=model.s3_region
+                bucket=model.s3_bucket, key=model.s3_key, region=model.s3_region
             )
-        
+
         file_upload = FileUpload(
             id=model.id,
             document_id=model.document_id,
@@ -136,5 +142,5 @@ class PostgresFileUploadRepository(FileUploadRepository):
             uploaded_at=model.uploaded_at,
             created_at=model.created_at,
         )
-        
+
         return file_upload

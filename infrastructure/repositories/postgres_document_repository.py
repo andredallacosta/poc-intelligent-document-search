@@ -34,7 +34,9 @@ class PostgresDocumentRepository(DocumentRepository):
                 else None
             )
 
-            existing_stmt = select(DocumentoModel).where(DocumentoModel.id == document.id)
+            existing_stmt = select(DocumentoModel).where(
+                DocumentoModel.id == document.id
+            )
             existing_result = await self._session.execute(existing_stmt)
             existing_model = existing_result.scalar_one_or_none()
 
@@ -45,7 +47,7 @@ class PostgresDocumentRepository(DocumentRepository):
                 existing_model.file_hash = file_hash
                 existing_model.meta_data = self._metadata_to_dict(document.metadata)
                 existing_model.atualizado_em = document.updated_at
-                
+
                 await self._session.flush()
                 return document
             else:
@@ -225,7 +227,7 @@ class PostgresDocumentRepository(DocumentRepository):
         stmt = select(func.count(DocumentoModel.id))
         result = await self._session.execute(stmt)
         return result.scalar()
-    
+
     async def find_by_content_hash(self, content_hash: str) -> Optional[Document]:
         """Busca documento por hash do conteúdo (para deduplicação)"""
         stmt = select(DocumentoModel).where(DocumentoModel.file_hash == content_hash)
@@ -252,7 +254,9 @@ class PostgresDocumentRepository(DocumentRepository):
                 metadata.creation_date.isoformat() if metadata.creation_date else None
             ),
             "modified_date": (
-                metadata.modification_date.isoformat() if metadata.modification_date else None
+                metadata.modification_date.isoformat()
+                if metadata.modification_date
+                else None
             ),
             "file_size": metadata.file_size,
             "page_count": metadata.page_count,

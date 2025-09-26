@@ -16,14 +16,12 @@ from application.use_cases.get_document_status import (
 from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
-
 from domain.services.chat_service import ChatService
-from domain.services.search_service import SearchService
 
 # === NOVO SERVIÇO DE DOMÍNIO ===
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
-
+from domain.services.search_service import SearchService
 from infrastructure.config.settings import settings
 from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
@@ -32,6 +30,9 @@ from infrastructure.external.redis_client import RedisClient
 
 # === NOVO S3 SERVICE ===
 from infrastructure.external.s3_service import S3Service
+
+# === PROCESSADOR DE TEXTO ===
+from infrastructure.processors.text_chunker import TextChunker
 
 # === NOVOS REPOSITÓRIOS ===
 from infrastructure.repositories.postgres_document_processing_job_repository import (
@@ -62,9 +63,6 @@ from infrastructure.repositories.redis_session_repository import (
     RedisSessionRepository,
 )
 
-# === PROCESSADOR DE TEXTO ===
-from infrastructure.processors.text_chunker import TextChunker
-
 
 class Container:
     def __init__(self):
@@ -82,8 +80,12 @@ class Container:
     def get_redis_client(self) -> RedisClient:
         if "redis_client" not in self._instances:
             # Use REDIS_URL if available, otherwise use individual settings
-            redis_url = settings.get_redis_url() if hasattr(settings, 'get_redis_url') else settings.redis_url
-            
+            redis_url = (
+                settings.get_redis_url()
+                if hasattr(settings, "get_redis_url")
+                else settings.redis_url
+            )
+
             if redis_url:
                 self._instances["redis_client"] = RedisClient(url=redis_url)
             else:
@@ -141,12 +143,12 @@ class Container:
         """Retorna S3Service configurado"""
         if "s3_service" not in self._instances:
             self._instances["s3_service"] = S3Service(
-                bucket=getattr(settings, 's3_bucket', 'documents'),
-                region=getattr(settings, 's3_region', 'us-east-1'),
-                access_key=getattr(settings, 'aws_access_key', None),
-                secret_key=getattr(settings, 'aws_secret_key', None),
-                endpoint_url=getattr(settings, 's3_endpoint_url', None),
-                public_endpoint_url=getattr(settings, 's3_public_endpoint_url', None),
+                bucket=getattr(settings, "s3_bucket", "documents"),
+                region=getattr(settings, "s3_region", "us-east-1"),
+                access_key=getattr(settings, "aws_access_key", None),
+                secret_key=getattr(settings, "aws_secret_key", None),
+                endpoint_url=getattr(settings, "s3_endpoint_url", None),
+                public_endpoint_url=getattr(settings, "s3_public_endpoint_url", None),
             )
         return self._instances["s3_service"]
 
@@ -155,9 +157,11 @@ class Container:
         """Retorna TextChunker configurado"""
         if "text_chunker" not in self._instances:
             self._instances["text_chunker"] = TextChunker(
-                chunk_size=getattr(settings, 'chunk_size', 500),
-                chunk_overlap=getattr(settings, 'chunk_overlap', 50),
-                use_contextual_retrieval=getattr(settings, 'use_contextual_retrieval', True)
+                chunk_size=getattr(settings, "chunk_size", 500),
+                chunk_overlap=getattr(settings, "chunk_overlap", 50),
+                use_contextual_retrieval=getattr(
+                    settings, "use_contextual_retrieval", True
+                ),
             )
         return self._instances["text_chunker"]
 
@@ -174,7 +178,9 @@ class Container:
         if "document_processor" not in self._instances:
             # NOTA: Algumas dependências serão injetadas via dependency functions
             # Por simplicidade no MVP, vamos criar uma instância básica
-            self._instances["document_processor"] = None  # Será implementado via dependencies
+            self._instances["document_processor"] = (
+                None  # Será implementado via dependencies
+            )
         return self._instances["document_processor"]
 
     async def close_connections(self):
@@ -275,13 +281,14 @@ async def create_chat_use_case() -> ChatWithDocumentsUseCase:
     # Get services directly from container
     chat_service = container.get_chat_service()
     llm_service = container.get_llm_service()
-    
+
     # Create search service with database session
     from infrastructure.database.connection import get_db_session
+
     async for session in get_db_session():
         vector_repo = PostgresVectorRepository(session)
         search_service = SearchService(vector_repository=vector_repo)
-        
+
         return ChatWithDocumentsUseCase(
             chat_service=chat_service,
             search_service=search_service,
@@ -290,6 +297,7 @@ async def create_chat_use_case() -> ChatWithDocumentsUseCase:
 
 
 # === NOVAS DEPENDENCIES PARA ADR-002 ===
+
 
 async def get_postgres_file_upload_repository(
     session: AsyncSession = Depends(get_db_session),
@@ -316,8 +324,12 @@ def get_text_chunker() -> TextChunker:
 
 
 async def get_document_service(
-    document_repo: PostgresDocumentRepository = Depends(get_postgres_document_repository),
-    document_chunk_repo: PostgresDocumentChunkRepository = Depends(get_postgres_document_chunk_repository),
+    document_repo: PostgresDocumentRepository = Depends(
+        get_postgres_document_repository
+    ),
+    document_chunk_repo: PostgresDocumentChunkRepository = Depends(
+        get_postgres_document_chunk_repository
+    ),
 ) -> DocumentService:
     """Dependency para DocumentService"""
     return DocumentService(
@@ -332,7 +344,9 @@ async def get_document_processor(
     text_chunker: TextChunker = Depends(get_text_chunker),
     openai_client: OpenAIClient = Depends(lambda: container.get_openai_client()),
     s3_service: S3Service = Depends(get_s3_service),
-    document_repo: PostgresDocumentRepository = Depends(get_postgres_document_repository),
+    document_repo: PostgresDocumentRepository = Depends(
+        get_postgres_document_repository
+    ),
 ) -> DocumentProcessor:
     """Dependency para DocumentProcessor"""
     return DocumentProcessor(
@@ -347,9 +361,12 @@ async def get_document_processor(
 
 # === USE CASES DEPENDENCIES ===
 
+
 async def get_create_presigned_upload_use_case(
     s3_service: S3Service = Depends(get_s3_service),
-    file_upload_repo: PostgresFileUploadRepository = Depends(get_postgres_file_upload_repository),
+    file_upload_repo: PostgresFileUploadRepository = Depends(
+        get_postgres_file_upload_repository
+    ),
 ) -> CreatePresignedUploadUseCase:
     """Dependency para CreatePresignedUploadUseCase"""
     return CreatePresignedUploadUseCase(
@@ -359,8 +376,12 @@ async def get_create_presigned_upload_use_case(
 
 
 async def get_process_document_use_case(
-    file_upload_repo: PostgresFileUploadRepository = Depends(get_postgres_file_upload_repository),
-    job_repo: PostgresDocumentProcessingJobRepository = Depends(get_postgres_document_processing_job_repository),
+    file_upload_repo: PostgresFileUploadRepository = Depends(
+        get_postgres_file_upload_repository
+    ),
+    job_repo: PostgresDocumentProcessingJobRepository = Depends(
+        get_postgres_document_processing_job_repository
+    ),
 ) -> ProcessUploadedDocumentUseCase:
     """Dependency para ProcessUploadedDocumentUseCase"""
     return ProcessUploadedDocumentUseCase(
@@ -370,14 +391,18 @@ async def get_process_document_use_case(
 
 
 async def get_document_status_use_case(
-    job_repo: PostgresDocumentProcessingJobRepository = Depends(get_postgres_document_processing_job_repository),
+    job_repo: PostgresDocumentProcessingJobRepository = Depends(
+        get_postgres_document_processing_job_repository
+    ),
 ) -> GetDocumentStatusUseCase:
     """Dependency para GetDocumentStatusUseCase"""
     return GetDocumentStatusUseCase(job_repository=job_repo)
 
 
 async def get_job_status_use_case(
-    job_repo: PostgresDocumentProcessingJobRepository = Depends(get_postgres_document_processing_job_repository),
+    job_repo: PostgresDocumentProcessingJobRepository = Depends(
+        get_postgres_document_processing_job_repository
+    ),
 ) -> GetJobStatusUseCase:
     """Dependency para GetJobStatusUseCase"""
     return GetJobStatusUseCase(job_repository=job_repo)

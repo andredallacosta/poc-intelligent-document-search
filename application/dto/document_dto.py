@@ -9,13 +9,14 @@ from domain.value_objects.processing_status import ProcessingStatus
 @dataclass
 class PresignedUploadRequestDTO:
     """DTO para solicitação de upload presigned"""
+
     filename: str
     file_size: int
     content_type: str
     title: Optional[str] = None
     description: Optional[str] = None
     tags: List[str] = None
-    
+
     def __post_init__(self):
         if self.tags is None:
             self.tags = []
@@ -24,6 +25,7 @@ class PresignedUploadRequestDTO:
 @dataclass
 class PresignedUploadResponseDTO:
     """DTO para resposta de upload presigned"""
+
     upload_url: str
     document_id: UUID
     upload_id: UUID
@@ -35,6 +37,7 @@ class PresignedUploadResponseDTO:
 @dataclass
 class ProcessDocumentRequestDTO:
     """DTO para solicitação de processamento"""
+
     upload_id: UUID
     file_hash: Optional[str] = None
 
@@ -42,6 +45,7 @@ class ProcessDocumentRequestDTO:
 @dataclass
 class ProcessDocumentResponseDTO:
     """DTO para resposta de processamento"""
+
     job_id: UUID
     status: ProcessingStatus
     estimated_time: str
@@ -50,6 +54,7 @@ class ProcessDocumentResponseDTO:
 @dataclass
 class DocumentStatusDTO:
     """DTO para status de processamento"""
+
     document_id: UUID
     job_id: UUID
     status: ProcessingStatus
@@ -67,6 +72,7 @@ class DocumentStatusDTO:
 @dataclass
 class DocumentSearchRequestDTO:
     """DTO para busca de documentos"""
+
     query: str
     n_results: int = 5
     similarity_threshold: float = 0.7
@@ -77,6 +83,7 @@ class DocumentSearchRequestDTO:
 @dataclass
 class DocumentSearchResultDTO:
     """DTO para resultado de busca"""
+
     chunk_id: UUID
     document_id: UUID
     document_title: str
@@ -90,6 +97,7 @@ class DocumentSearchResultDTO:
 @dataclass
 class DocumentSearchResponseDTO:
     """DTO para resposta de busca"""
+
     results: List[DocumentSearchResultDTO]
     query_time: float
     total_chunks_searched: int
@@ -98,6 +106,7 @@ class DocumentSearchResponseDTO:
 @dataclass
 class DocumentListRequestDTO:
     """DTO para listagem de documentos"""
+
     search: Optional[str] = None
     tags: Optional[List[str]] = None
     status: Optional[str] = None
@@ -108,6 +117,7 @@ class DocumentListRequestDTO:
 @dataclass
 class DocumentSummaryDTO:
     """DTO para resumo de documento"""
+
     id: UUID
     title: str
     description: Optional[str]
@@ -127,6 +137,7 @@ class DocumentSummaryDTO:
 @dataclass
 class DocumentListResponseDTO:
     """DTO para resposta de listagem"""
+
     documents: List[DocumentSummaryDTO]
     total: int
     has_more: bool
@@ -135,6 +146,7 @@ class DocumentListResponseDTO:
 @dataclass
 class DocumentStatsDTO:
     """DTO para estatísticas de documentos"""
+
     total_documents: int
     by_status: Dict[str, int]
     total_chunks: int
@@ -148,6 +160,7 @@ class DocumentStatsDTO:
 @dataclass
 class DocumentHealthDTO:
     """DTO para health check de documentos"""
+
     status: str
     database: str
     vector_store: str

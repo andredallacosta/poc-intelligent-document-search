@@ -187,6 +187,7 @@ class MessageModel(Base):
         CheckConstraint("tokens_usados >= 0", name="check_tokens_positive"),
     )
 
+
 class FileUploadModel(Base):
     __tablename__ = "file_upload"
 
@@ -237,12 +238,18 @@ class DocumentProcessingJobModel(Base):
         Index("idx_processing_job_upload_id", "upload_id"),
         Index("idx_processing_job_status", "status"),
         Index("idx_processing_job_created", "created_at"),
-        CheckConstraint("progress >= 0 AND progress <= 100", name="check_progress_range"),
-        CheckConstraint("chunks_processed >= 0", name="check_chunks_processed_positive"),
+        CheckConstraint(
+            "progress >= 0 AND progress <= 100", name="check_progress_range"
+        ),
+        CheckConstraint(
+            "chunks_processed >= 0", name="check_chunks_processed_positive"
+        ),
         CheckConstraint("total_chunks >= 0", name="check_total_chunks_positive"),
-        CheckConstraint("processing_time_seconds >= 0", name="check_processing_time_positive"),
+        CheckConstraint(
+            "processing_time_seconds >= 0", name="check_processing_time_positive"
+        ),
         CheckConstraint(
             "status IN ('uploaded', 'extracting', 'checking_duplicates', 'chunking', 'embedding', 'completed', 'failed', 'duplicate')",
-            name="check_valid_status"
+            name="check_valid_status",
         ),
     )

@@ -7,19 +7,30 @@ from domain.exceptions.document_exceptions import (
     DocumentNotFoundError,
     InvalidDocumentError,
 )
-from domain.repositories.document_repository import DocumentRepository, DocumentChunkRepository
+from domain.repositories.document_repository import (
+    DocumentChunkRepository,
+    DocumentRepository,
+)
 from domain.value_objects.document_metadata import DocumentMetadata
 
 
 class DocumentService:
 
-    def __init__(self, document_repository: DocumentRepository, document_chunk_repository: DocumentChunkRepository = None):
+    def __init__(
+        self,
+        document_repository: DocumentRepository,
+        document_chunk_repository: DocumentChunkRepository = None,
+    ):
         self._document_repository = document_repository
         self._document_chunk_repository = document_chunk_repository
 
     async def create_document(
-        self, title: str, content: str, file_path: str, metadata: DocumentMetadata,
-        skip_duplicate_check: bool = False
+        self,
+        title: str,
+        content: str,
+        file_path: str,
+        metadata: DocumentMetadata,
+        skip_duplicate_check: bool = False,
     ) -> Document:
         if not title.strip():
             raise InvalidDocumentError("Document title cannot be empty")
@@ -83,7 +94,9 @@ class DocumentService:
     async def get_document_chunks(self, document_id: UUID) -> List[DocumentChunk]:
         """Retorna todos os chunks de um documento"""
         if self._document_chunk_repository:
-            return await self._document_chunk_repository.find_chunks_by_document_id(document_id)
+            return await self._document_chunk_repository.find_chunks_by_document_id(
+                document_id
+            )
         else:
             document = await self.get_document_by_id(document_id)
             return document.chunks
