@@ -1,11 +1,8 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
-
 from pydantic import BaseModel, Field, validator
 
-
-# === UPLOAD SCHEMAS ===
 
 class PresignedUploadRequest(BaseModel):
     """Schema para solicitação de upload presigned"""
@@ -20,8 +17,8 @@ class PresignedUploadRequest(BaseModel):
     def validate_content_type(cls, v):
         allowed_types = [
             "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-            "application/msword"  # .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword" 
         ]
         if v not in allowed_types:
             raise ValueError(f"Tipo de arquivo não suportado: {v}")
@@ -53,9 +50,9 @@ class PresignedUploadResponse(BaseModel):
     upload_id: UUID = Field(..., description="ID do upload")
     expires_in: int = Field(..., description="Tempo de expiração em segundos")
     expires_at: datetime = Field(..., description="Data/hora de expiração")
+    upload_fields: Dict[str, str] = Field(..., description="Campos necessários para presigned POST")
 
 
-# === PROCESSING SCHEMAS ===
 
 class ProcessDocumentRequest(BaseModel):
     """Schema para solicitação de processamento"""
@@ -69,8 +66,6 @@ class ProcessDocumentResponse(BaseModel):
     status: str = Field(..., description="Status atual do processamento")
     estimated_time: str = Field(..., description="Tempo estimado de processamento")
 
-
-# === STATUS SCHEMAS ===
 
 class DocumentStatus(BaseModel):
     """Schema para status de processamento"""
@@ -87,8 +82,6 @@ class DocumentStatus(BaseModel):
     error: Optional[str] = Field(None, description="Mensagem de erro se houver")
     estimated_time_remaining: Optional[str] = Field(None, description="Tempo estimado restante")
 
-
-# === SEARCH SCHEMAS ===
 
 class DocumentSearchRequest(BaseModel):
     """Schema para busca semântica"""
@@ -117,8 +110,6 @@ class DocumentSearchResponse(BaseModel):
     query_time: float = Field(..., description="Tempo da consulta em segundos")
     total_chunks_searched: int = Field(..., description="Total de chunks pesquisados")
 
-
-# === MANAGEMENT SCHEMAS ===
 
 class DocumentListRequest(BaseModel):
     """Schema para listagem de documentos"""
@@ -154,8 +145,6 @@ class DocumentListResponse(BaseModel):
     has_more: bool = Field(..., description="Se há mais documentos")
 
 
-# === STATS SCHEMAS ===
-
 class DocumentStats(BaseModel):
     """Schema para estatísticas"""
     total_documents: int = Field(..., description="Total de documentos")
@@ -178,8 +167,6 @@ class DocumentHealth(BaseModel):
     processing_queue: int = Field(..., description="Tamanho da fila de processamento")
     last_successful_upload: Optional[datetime] = Field(None, description="Último upload bem-sucedido")
 
-
-# === ERROR SCHEMAS ===
 
 class DocumentError(BaseModel):
     """Schema para erros de documentos"""

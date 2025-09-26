@@ -7,17 +7,19 @@ from domain.exceptions.document_exceptions import (
     DocumentNotFoundError,
     InvalidDocumentError,
 )
-from domain.repositories.document_repository import DocumentRepository
+from domain.repositories.document_repository import DocumentRepository, DocumentChunkRepository
 from domain.value_objects.document_metadata import DocumentMetadata
 
 
 class DocumentService:
 
-    def __init__(self, document_repository: DocumentRepository):
+    def __init__(self, document_repository: DocumentRepository, document_chunk_repository: DocumentChunkRepository = None):
         self._document_repository = document_repository
+        self._document_chunk_repository = document_chunk_repository
 
     async def create_document(
-        self, title: str, content: str, file_path: str, metadata: DocumentMetadata
+        self, title: str, content: str, file_path: str, metadata: DocumentMetadata,
+        skip_duplicate_check: bool = False
     ) -> Document:
         if not title.strip():
             raise InvalidDocumentError("Document title cannot be empty")
@@ -25,10 +27,11 @@ class DocumentService:
         if not content.strip():
             raise InvalidDocumentError("Document content cannot be empty")
 
-        if await self._document_repository.exists(metadata.source):
-            raise DocumentAlreadyExistsError(
-                f"Document with source '{metadata.source}' already exists"
-            )
+        if not skip_duplicate_check:
+            if await self._document_repository.exists(metadata.source):
+                raise DocumentAlreadyExistsError(
+                    f"Document with source '{metadata.source}' already exists"
+                )
 
         document = Document(
             id=uuid4(),
@@ -66,11 +69,24 @@ class DocumentService:
     ) -> Document:
         document = await self.get_document_by_id(document_id)
 
-        for chunk in chunks:
-            chunk.document_id = document_id
-            document.add_chunk(chunk)
+        if self._document_chunk_repository:
+            for chunk in chunks:
+                chunk.document_id = document_id
+                await self._document_chunk_repository.save_chunk(chunk)
+        else:
+            for chunk in chunks:
+                chunk.document_id = document_id
+                document.add_chunk(chunk)
 
-        return await self._document_repository.save(document)
+        return document
+
+    async def get_document_chunks(self, document_id: UUID) -> List[DocumentChunk]:
+        """Retorna todos os chunks de um documento"""
+        if self._document_chunk_repository:
+            return await self._document_chunk_repository.find_chunks_by_document_id(document_id)
+        else:
+            document = await self.get_document_by_id(document_id)
+            return document.chunks
 
     def validate_document_content(self, content: str) -> bool:
         if not content or not content.strip():

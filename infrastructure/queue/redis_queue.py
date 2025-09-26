@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from rq import Queue, Worker
+from rq import Queue, Worker, Retry
 from rq.job import Job
 from redis import Redis
 
@@ -15,18 +15,23 @@ class RedisQueueService:
     """Serviço para gerenciar filas Redis usando RQ"""
     
     def __init__(self):
-        self.redis_conn = Redis(
-            host=settings.redis_host,
-            port=settings.redis_port,
-            db=settings.redis_db,
-            decode_responses=True
-        )
+        if settings.redis_url:
+            self.redis_conn = Redis.from_url(
+                settings.redis_url,
+                decode_responses=False 
+            )
+        else:
+            self.redis_conn = Redis(
+                host=settings.redis_host,
+                port=settings.redis_port,
+                db=settings.redis_db,
+                decode_responses=False
+            )
         
-        # Filas específicas por tipo de processamento
         self.document_queue = Queue(
             'document_processing', 
             connection=self.redis_conn,
-            default_timeout='30m'  # 30 minutos timeout
+            default_timeout='30m'
         )
         
         self.cleanup_queue = Queue(
@@ -53,7 +58,6 @@ class RedisQueueService:
             str: ID do job Redis
         """
         try:
-            # Importar aqui para evitar circular imports
             from infrastructure.queue.jobs import process_document_job
             
             job = self.document_queue.enqueue(
@@ -61,7 +65,7 @@ class RedisQueueService:
                 str(file_upload_id),
                 str(job_id),
                 job_timeout='30m',
-                retry=3,  # 3 tentativas
+                retry=Retry(max=3),
                 meta={
                     'priority': priority,
                     'type': 'document_processing',
@@ -96,7 +100,7 @@ class RedisQueueService:
                 task_type,
                 kwargs,
                 job_timeout='5m',
-                retry=2
+                retry=Retry(max=2)
             )
             
             logger.info(f"Tarefa de limpeza enfileirada: {job.id} - {task_type}")
@@ -208,5 +212,4 @@ class RedisQueueService:
             return False
 
 
-# Instância global do serviço
 redis_queue_service = RedisQueueService()

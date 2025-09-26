@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 from uuid import UUID, uuid4
 
@@ -27,7 +27,7 @@ class DocumentProcessingJob:
     content_hash: Optional[ContentHash] = None
     error_message: Optional[str] = None
     metadata: Dict = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     
@@ -73,7 +73,7 @@ class DocumentProcessingJob:
             document_id=document_id,
             upload_id=upload_id,
             current_step=initial_step,
-            started_at=datetime.utcnow()
+            started_at=datetime.now(timezone.utc)
         )
     
     def update_status(
@@ -99,11 +99,11 @@ class DocumentProcessingJob:
         # Marcar como iniciado se saiu de UPLOADED
         if old_status == ProcessingStatus.UPLOADED and status != ProcessingStatus.UPLOADED:
             if not self.started_at:
-                self.started_at = datetime.utcnow()
+                self.started_at = datetime.now(timezone.utc)
         
         # Marcar como concluído se chegou em status final
         if status.is_final and not self.completed_at:
-            self.completed_at = datetime.utcnow()
+            self.completed_at = datetime.now(timezone.utc)
             self._calculate_processing_time()
     
     def update_chunks_progress(self, chunks_processed: int, total_chunks: int) -> None:
@@ -131,7 +131,7 @@ class DocumentProcessingJob:
     def mark_s3_file_deleted(self) -> None:
         """Marca arquivo S3 como deletado"""
         self.s3_file_deleted = True
-        self.metadata["s3_cleanup_at"] = datetime.utcnow().isoformat()
+        self.metadata["s3_cleanup_at"] = datetime.now(timezone.utc).isoformat()
     
     def set_content_hash(self, content_hash: ContentHash) -> None:
         """Define hash do conteúdo"""
@@ -143,13 +143,23 @@ class DocumentProcessingJob:
         self.error_message = error_message
         self.progress = 0
         self.current_step = f"Erro: {error_message}"
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self._calculate_processing_time()
     
     def _calculate_processing_time(self) -> None:
         """Calcula tempo total de processamento"""
         if self.started_at and self.completed_at:
             delta = self.completed_at - self.started_at
+            started = self.started_at
+            completed = self.completed_at
+            
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            
+            if completed.tzinfo is None:
+                completed = completed.replace(tzinfo=timezone.utc)
+                
+            delta = completed - started
             self.processing_time_seconds = int(delta.total_seconds())
     
     @property
@@ -183,7 +193,7 @@ class DocumentProcessingJob:
         if not self.started_at or self.progress == 0:
             return None
         
-        elapsed = (datetime.utcnow() - self.started_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.started_at).total_seconds()
         if self.progress >= 100:
             return "Concluído"
         

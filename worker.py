@@ -35,7 +35,7 @@ def create_redis_connection() -> Redis:
     """Cria conexão Redis para workers"""
     return Redis.from_url(
         settings.get_redis_url(),
-        decode_responses=True
+        decode_responses=False
     )
 
 

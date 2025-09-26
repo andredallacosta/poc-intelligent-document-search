@@ -11,6 +11,7 @@ from domain.repositories.document_repository import DocumentRepository
 from domain.repositories.vector_repository import VectorRepository
 from domain.services.document_service import DocumentService
 from domain.value_objects.content_hash import ContentHash
+from domain.value_objects.document_metadata import DocumentMetadata
 from domain.value_objects.processing_status import ProcessingStatus
 from infrastructure.external.openai_client import OpenAIClient
 from infrastructure.external.s3_service import S3Service
@@ -53,7 +54,6 @@ class DocumentProcessor:
             BusinessRuleViolationError: Se falha no processamento
         """
         try:
-            # 1. DOWNLOAD & EXTRACT (5-25%)
             job.update_status(
                 ProcessingStatus.EXTRACTING,
                 "Baixando arquivo do S3..."
@@ -61,19 +61,17 @@ class DocumentProcessor:
             
             text_content = await self._download_and_extract_text(file_upload, job)
             
-            # 2. DEDUPLICATION CHECK (25-35%)
             job.update_status(
                 ProcessingStatus.CHECKING_DUPLICATES,
                 "Verificando se documento já existe..."
             )
             
-            existing_document = await self._check_for_duplicate(text_content, job)
+            existing_document = await self._check_for_duplicate(text_content, job, file_upload)
             if existing_document:
                 job.mark_as_duplicate(existing_document.id)
                 await self._cleanup_s3_file(file_upload)
                 return existing_document
             
-            # 3. CHUNKING (35-55%)
             job.update_status(
                 ProcessingStatus.CHUNKING,
                 "Dividindo documento em seções..."
@@ -83,7 +81,6 @@ class DocumentProcessor:
                 file_upload, text_content, job
             )
             
-            # 4. EMBEDDING (55-85%)
             job.update_status(
                 ProcessingStatus.EMBEDDING,
                 "Gerando embeddings para busca..."
@@ -91,13 +88,11 @@ class DocumentProcessor:
             
             await self._generate_and_save_embeddings(document, job)
             
-            # 5. FINALIZATION (85-100%)
             job.update_status(
                 ProcessingStatus.COMPLETED,
                 "Processamento concluído com sucesso"
             )
             
-            # 🗑️ CRÍTICO: Deletar arquivo do S3
             await self._cleanup_s3_file(file_upload)
             job.mark_s3_file_deleted()
             
@@ -107,14 +102,6 @@ class DocumentProcessor:
         except Exception as e:
             logger.error(f"Erro no processamento do documento: {e}")
             job.fail_with_error(str(e))
-            
-            # Tentar limpar S3 mesmo em caso de erro
-            try:
-                await self._cleanup_s3_file(file_upload)
-                job.mark_s3_file_deleted()
-            except:
-                logger.warning("Falha na limpeza S3 após erro")
-            
             raise BusinessRuleViolationError(f"Falha no processamento: {str(e)}")
     
     async def _download_and_extract_text(
@@ -124,12 +111,10 @@ class DocumentProcessor:
         if not file_upload.s3_key:
             raise BusinessRuleViolationError("S3 key não definida para o upload")
         
-        # Baixar para arquivo temporário
         with tempfile.NamedTemporaryFile(suffix=file_upload.file_extension, delete=False) as tmp_file:
             tmp_path = tmp_file.name
         
         try:
-            # Download do S3
             success = await self.s3_service.download_file(file_upload.s3_key, tmp_path)
             if not success:
                 raise BusinessRuleViolationError("Falha no download do S3")
@@ -139,7 +124,6 @@ class DocumentProcessor:
                 "Extraindo texto do documento..."
             )
             
-            # Extrair texto baseado no tipo
             if file_upload.is_pdf:
                 text_content = await self._extract_text_from_pdf(tmp_path)
             elif file_upload.is_docx:
@@ -156,7 +140,6 @@ class DocumentProcessor:
             return text_content
             
         finally:
-            # Limpar arquivo temporário
             try:
                 Path(tmp_path).unlink()
             except:
@@ -203,26 +186,27 @@ class DocumentProcessor:
             raise BusinessRuleViolationError(f"Falha na extração de texto DOC: {str(e)}")
     
     async def _check_for_duplicate(
-        self, text_content: str, job: DocumentProcessingJob
+        self, text_content: str, job: DocumentProcessingJob, file_upload: FileUpload
     ) -> Optional[Document]:
-        """Verifica se documento já existe baseado no hash do conteúdo"""
+        """Verifica se documento já existe baseado no hash do conteúdo OU filename"""
         try:
-            # Calcular hash do conteúdo normalizado
             content_hash = ContentHash.from_text(text_content)
             job.set_content_hash(content_hash)
             
-            # Buscar documento existente com mesmo hash
-            existing = await self.document_repository.find_by_content_hash(content_hash.value)
+            existing_by_content = await self.document_repository.find_by_content_hash(content_hash.value)
+            if existing_by_content:
+                logger.info(f"Documento duplicado por conteúdo detectado: {existing_by_content.title}")
+                return existing_by_content
             
-            if existing:
-                logger.info(f"Documento duplicado detectado: {existing.title}")
-                return existing
+            existing_by_source = await self.document_repository.find_by_source(file_upload.filename)
+            if existing_by_source:
+                logger.info(f"Documento duplicado por filename detectado: {existing_by_source.title}")
+                return existing_by_source
             
             return None
             
         except Exception as e:
             logger.warning(f"Erro na verificação de duplicata: {e}")
-            # Não falhar por erro na deduplicação, continuar processamento
             return None
     
     async def _create_document_with_chunks(
@@ -230,33 +214,33 @@ class DocumentProcessor:
     ) -> Document:
         """Cria documento e chunks"""
         try:
-            # Criar documento
-            document = Document.create(
-                title=file_upload.filename,
-                content=text_content,
-                file_path=file_upload.s3_key.full_path if file_upload.s3_key else "",
-                metadata={
-                    "source": file_upload.filename,
-                    "content_type": file_upload.content_type,
-                    "file_size": file_upload.file_size,
+            metadata = DocumentMetadata(
+                source=file_upload.filename,
+                file_size=file_upload.file_size,
+                file_type=file_upload.content_type,
+                custom_fields={
                     "upload_id": str(file_upload.id),
                     "content_hash": job.content_hash.value if job.content_hash else None
                 }
             )
             
-            # Salvar documento
-            await self.document_service.create_document(document)
+            document = await self.document_service.create_document(
+                title=file_upload.filename,
+                content=text_content,
+                file_path=file_upload.s3_key.full_path if file_upload.s3_key else "",
+                metadata=metadata,
+                skip_duplicate_check=True 
+            )
             
-            # Criar chunks
             chunks = self.text_chunker.chunk_document_content(
                 content=text_content,
+                document_id=str(document.id),
                 metadata={
                     "source": file_upload.filename,
                     "document_id": str(document.id)
                 }
             )
             
-            # Salvar chunks
             await self.document_service.add_chunks_to_document(document.id, chunks)
             
             job.update_chunks_progress(0, len(chunks))
@@ -273,13 +257,11 @@ class DocumentProcessor:
     ) -> None:
         """Gera embeddings para todos os chunks do documento"""
         try:
-            # Buscar chunks do documento
             chunks = await self.document_service.get_document_chunks(document.id)
             
             if not chunks:
                 raise BusinessRuleViolationError("Nenhum chunk encontrado para o documento")
             
-            # Processar em batches
             batch_size = 20
             total_batches = (len(chunks) + batch_size - 1) // batch_size
             
@@ -287,20 +269,16 @@ class DocumentProcessor:
                 batch_chunks = chunks[i:i + batch_size]
                 batch_number = (i // batch_size) + 1
                 
-                # Gerar embeddings para o batch
                 texts = [chunk.content for chunk in batch_chunks]
                 embeddings = await self.openai_client.generate_embeddings_batch(texts)
                 
-                # Salvar embeddings
                 for chunk, embedding in zip(batch_chunks, embeddings):
                     await self.vector_repository.add_chunk_embedding(
                         chunk_id=chunk.id,
                         embedding=embedding,
-                        content=chunk.content,
-                        metadata=chunk.metadata
+                        metadata={}
                     )
                 
-                # Atualizar progresso
                 processed_count = min(i + batch_size, len(chunks))
                 job.update_chunks_progress(processed_count, len(chunks))
                 
@@ -325,4 +303,3 @@ class DocumentProcessor:
                 logger.warning(f"Falha na remoção do arquivo S3: {file_upload.s3_key.key}")
         except Exception as e:
             logger.error(f"Erro na limpeza S3: {e}")
-            # Não falhar o processamento por erro na limpeza

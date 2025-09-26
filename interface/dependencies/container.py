@@ -145,6 +145,8 @@ class Container:
                 region=getattr(settings, 's3_region', 'us-east-1'),
                 access_key=getattr(settings, 'aws_access_key', None),
                 secret_key=getattr(settings, 'aws_secret_key', None),
+                endpoint_url=getattr(settings, 's3_endpoint_url', None),
+                public_endpoint_url=getattr(settings, 's3_public_endpoint_url', None),
             )
         return self._instances["s3_service"]
 
@@ -315,12 +317,12 @@ def get_text_chunker() -> TextChunker:
 
 async def get_document_service(
     document_repo: PostgresDocumentRepository = Depends(get_postgres_document_repository),
-    chunk_repo: PostgresDocumentChunkRepository = Depends(get_postgres_document_chunk_repository),
+    document_chunk_repo: PostgresDocumentChunkRepository = Depends(get_postgres_document_chunk_repository),
 ) -> DocumentService:
     """Dependency para DocumentService"""
     return DocumentService(
         document_repository=document_repo,
-        chunk_repository=chunk_repo,
+        document_chunk_repository=document_chunk_repo,
     )
 
 

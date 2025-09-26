@@ -55,11 +55,12 @@ class CreatePresignedUploadUseCase:
             # Gerar chave S3 temporária
             s3_key = S3Key.create_temp_key(
                 document_id=str(document_id),
-                filename=request.filename
+                filename=request.filename,
+                bucket=self.s3_service.bucket
             )
             
             # Gerar URL presigned
-            upload_url, expires_at = self.s3_service.generate_presigned_upload_url(
+            upload_url, expires_at, upload_fields = self.s3_service.generate_presigned_upload_url(
                 s3_key=s3_key,
                 content_type=request.content_type,
                 expires_in=3600  # 1 hora
@@ -78,7 +79,8 @@ class CreatePresignedUploadUseCase:
                 document_id=document_id,
                 upload_id=file_upload.id,
                 expires_in=3600,
-                expires_at=expires_at
+                expires_at=expires_at,
+                upload_fields=upload_fields
             )
             
         except BusinessRuleViolationError:

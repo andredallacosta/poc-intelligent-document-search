@@ -37,34 +37,14 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 
 # === DEPENDENCY INJECTION ===
-# NOTA: Estas dependências serão implementadas no container
+# Importar dependências do container
 
-async def get_create_presigned_upload_use_case() -> CreatePresignedUploadUseCase:
-    """Dependency para CreatePresignedUploadUseCase"""
-    # Será implementado no container
-    from interface.dependencies.container import get_create_presigned_upload_use_case
-    return await get_create_presigned_upload_use_case()
-
-
-async def get_process_document_use_case() -> ProcessUploadedDocumentUseCase:
-    """Dependency para ProcessUploadedDocumentUseCase"""
-    # Será implementado no container
-    from interface.dependencies.container import get_process_document_use_case
-    return await get_process_document_use_case()
-
-
-async def get_document_status_use_case() -> GetDocumentStatusUseCase:
-    """Dependency para GetDocumentStatusUseCase"""
-    # Será implementado no container
-    from interface.dependencies.container import get_document_status_use_case
-    return await get_document_status_use_case()
-
-
-async def get_job_status_use_case() -> GetJobStatusUseCase:
-    """Dependency para GetJobStatusUseCase"""
-    # Será implementado no container
-    from interface.dependencies.container import get_job_status_use_case
-    return await get_job_status_use_case()
+from interface.dependencies.container import (
+    get_create_presigned_upload_use_case,
+    get_process_document_use_case,
+    get_document_status_use_case,
+    get_job_status_use_case,
+)
 
 
 # === UPLOAD ENDPOINTS ===
@@ -105,6 +85,7 @@ async def create_presigned_upload(
             upload_id=result.upload_id,
             expires_in=result.expires_in,
             expires_at=result.expires_at,
+            upload_fields=result.upload_fields,
         )
         
     except BusinessRuleViolationError as e:

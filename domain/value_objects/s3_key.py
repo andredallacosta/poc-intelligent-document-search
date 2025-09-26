@@ -28,7 +28,7 @@ class S3Key:
             raise BusinessRuleViolationError("Key S3 não pode ter mais de 1024 caracteres")
     
     @classmethod
-    def create_temp_key(cls, document_id: str, filename: str, bucket: str = "documents", region: str = "us-east-1") -> "S3Key":
+    def create_temp_key(cls, document_id: str, filename: str, bucket: str, region: str = "us-east-1") -> "S3Key":
         """Cria chave S3 para arquivo temporário"""
         safe_filename = filename.replace(" ", "_").replace("/", "_")
         key = f"temp/{document_id}/{safe_filename}"

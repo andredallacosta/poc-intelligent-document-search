@@ -234,6 +234,42 @@ logs: ## Show application logs (if running with Docker)
 	docker-compose logs -f intelligent-document-search
 
 # =============================================================================
+# LOCALSTACK DEVELOPMENT
+# =============================================================================
+
+localstack-setup: ## Setup LocalStack S3 for development
+	@echo "🚀 Setting up LocalStack S3..."
+	@if ! command -v aws >/dev/null 2>&1; then \
+		echo "❌ AWS CLI not found. Install with: pip install awscli"; \
+		exit 1; \
+	fi
+	@./scripts/setup_localstack.sh
+
+localstack-test: ## Test document ingestion with real documents from /documents folder
+	@echo "🧪 Testing document ingestion with real documents..."
+	@if ! python -c "import aiohttp" >/dev/null 2>&1; then \
+		echo "❌ Missing dependencies. Install with: pip install aiohttp"; \
+		exit 1; \
+	fi
+	@cd /home/andre/Projects/poc-intelligent-document-search && python scripts/test_real_documents.py
+
+localstack-test-search: ## Test search quality with real documents
+	@echo "🎯 Testing search quality with real documents..."
+	@if ! python -c "import aiohttp" >/dev/null 2>&1; then \
+		echo "❌ Missing dependencies. Install with: pip install aiohttp"; \
+		exit 1; \
+	fi
+	@cd /home/andre/Projects/poc-intelligent-document-search && python scripts/test_search_quality.py
+
+localstack-status: ## Check LocalStack S3 status
+	@echo "📊 Checking LocalStack S3 status..."
+	@if command -v aws >/dev/null 2>&1; then \
+		AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test aws --endpoint-url=http://localhost:4566 s3 ls; \
+	else \
+		echo "❌ AWS CLI not found. Install with: pip install awscli"; \
+	fi
+
+# =============================================================================
 # REDIS QUEUE MANAGEMENT
 # =============================================================================
 
@@ -294,9 +330,10 @@ health-check: ## 🏥 Check health of all services
 # SHORTCUTS
 # =============================================================================
 
-up: docker-up ## Alias for docker-up
-down: docker-down ## Alias for docker-down
-restart: docker-down docker-up ## Restart all services
+up: docker-up ## 🚀 Start all services (auto-runs migrations)
+down: docker-down ## 🛑 Stop all services  
+restart: docker-down docker-up ## 🔄 Restart all services (auto-runs migrations)
+fresh-start: docker-down docker-build docker-up ## 🆕 Fresh start: Clean rebuild with auto-migrations
 logs-api: logs ## Alias for logs
 
 dev-full: docker-up ## 🔧 Start full development environment (Docker + API + Workers)

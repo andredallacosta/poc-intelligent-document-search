@@ -29,6 +29,7 @@ class PresignedUploadResponseDTO:
     upload_id: UUID
     expires_in: int
     expires_at: datetime
+    upload_fields: Dict[str, str]
 
 
 @dataclass

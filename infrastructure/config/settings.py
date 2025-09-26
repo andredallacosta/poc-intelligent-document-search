@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     )
     logs_directory: str = Field(default="./storage/logs", env="LOGS_DIRECTORY")
 
+    # AWS S3 Configuration
+    aws_access_key: Optional[str] = Field(default=None, env="AWS_ACCESS_KEY")
+    aws_secret_key: Optional[str] = Field(default=None, env="AWS_SECRET_KEY")
+    s3_bucket: str = Field(default="documents", env="S3_BUCKET")
+    s3_region: str = Field(default="us-east-1", env="S3_REGION")
+    s3_endpoint_url: Optional[str] = Field(default=None, env="S3_ENDPOINT_URL")
+    s3_public_endpoint_url: Optional[str] = Field(default=None, env="S3_PUBLIC_ENDPOINT_URL")
+
     # Security
     cors_origins: list = Field(default=["*"], env="CORS_ORIGINS")
     cors_methods: list = Field(default=["*"], env="CORS_METHODS")

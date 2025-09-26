@@ -9,6 +9,38 @@ from rq import get_current_job
 logger = logging.getLogger(__name__)
 
 
+async def _cleanup_orphaned_s3_file(file_upload_id: str):
+    """Limpa arquivo S3 órfão após esgotar tentativas"""
+    try:
+        from infrastructure.database.connection import get_async_session
+        from infrastructure.repositories.postgres_file_upload_repository import PostgresFileUploadRepository
+        from infrastructure.external.s3_service import S3Service
+        from infrastructure.config.settings import settings
+        from uuid import UUID
+        
+        async with get_async_session() as session:
+            file_upload_repo = PostgresFileUploadRepository(session)
+            file_upload = await file_upload_repo.find_by_id(UUID(file_upload_id))
+            
+            if file_upload and file_upload.s3_key:
+                s3_service = S3Service(
+                    bucket=settings.s3_bucket,
+                    region=settings.s3_region,
+                    access_key=settings.aws_access_key,
+                    secret_key=settings.aws_secret_key,
+                    endpoint_url=settings.s3_endpoint_url
+                )
+                
+                success = await s3_service.delete_file(file_upload.s3_key)
+                if success:
+                    logger.info(f"Arquivo S3 órfão removido: {file_upload.s3_key.key}")
+                else:
+                    logger.warning(f"Falha na remoção do arquivo S3 órfão: {file_upload.s3_key.key}")
+                    
+    except Exception as e:
+        logger.error(f"Erro na limpeza de arquivo S3 órfão: {e}")
+
+
 def process_document_job(file_upload_id: str, processing_job_id: str) -> Dict[str, Any]:
     """
     Job para processar documento de forma assíncrona
@@ -26,7 +58,6 @@ def process_document_job(file_upload_id: str, processing_job_id: str) -> Dict[st
     logger.info(f"Iniciando processamento de documento - Job: {job.id}")
     
     try:
-        # Executar processamento assíncrono em loop de eventos
         result = asyncio.run(_process_document_async(file_upload_id, processing_job_id))
         
         logger.info(f"Documento processado com sucesso - Job: {job.id}")
@@ -42,10 +73,12 @@ def process_document_job(file_upload_id: str, processing_job_id: str) -> Dict[st
     except Exception as e:
         logger.error(f"Erro no processamento do documento - Job: {job.id}, Erro: {e}")
         
-        # Atualizar job de processamento com erro
         asyncio.run(_update_job_with_error(processing_job_id, str(e)))
         
-        # Re-raise para que RQ marque como failed
+        if job.retries_left == 0:
+            logger.info(f"Última tentativa falhada - limpando arquivo S3 órfão: {file_upload_id}")
+            asyncio.run(_cleanup_orphaned_s3_file(file_upload_id))
+        
         raise
 
 
@@ -64,7 +97,9 @@ async def _process_document_async(file_upload_id: str, processing_job_id: str) -
     from infrastructure.repositories.postgres_file_upload_repository import PostgresFileUploadRepository
     from infrastructure.repositories.postgres_document_processing_job_repository import PostgresDocumentProcessingJobRepository
     from domain.services.document_processor import DocumentProcessor
-    from infrastructure.repositories.postgres_document_repository import PostgresDocumentRepository
+    from domain.services.document_service import DocumentService
+    from infrastructure.repositories.postgres_document_repository import PostgresDocumentRepository, PostgresDocumentChunkRepository
+    from infrastructure.config.settings import settings
     from infrastructure.repositories.postgres_vector_repository import PostgresVectorRepository
     from infrastructure.external.s3_service import S3Service
     from infrastructure.external.openai_client import OpenAIClient
@@ -72,29 +107,42 @@ async def _process_document_async(file_upload_id: str, processing_job_id: str) -
     
     start_time = datetime.utcnow()
     
-    # Criar sessão de banco de dados
     async with get_async_session() as session:
-        # Repositórios
         file_upload_repo = PostgresFileUploadRepository(session)
         job_repo = PostgresDocumentProcessingJobRepository(session)
         document_repo = PostgresDocumentRepository(session)
         vector_repo = PostgresVectorRepository(session)
-        
-        # Serviços
-        s3_service = S3Service()
+
+        s3_service = S3Service(
+            bucket=settings.s3_bucket,
+            region=settings.s3_region,
+            access_key=settings.aws_access_key,
+            secret_key=settings.aws_secret_key,
+            endpoint_url=settings.s3_endpoint_url,
+            public_endpoint_url=getattr(settings, 's3_public_endpoint_url', settings.s3_endpoint_url)
+        )
         openai_client = OpenAIClient()
-        text_chunker = TextChunker()
-        
-        # Document Processor
-        document_processor = DocumentProcessor(
-            document_repository=document_repo,
-            vector_repository=vector_repo,
-            s3_service=s3_service,
-            openai_client=openai_client,
-            text_chunker=text_chunker
+        text_chunker = TextChunker(
+            chunk_size=getattr(settings, 'chunk_size', 500),
+            chunk_overlap=getattr(settings, 'chunk_overlap', 50),
+            use_contextual_retrieval=getattr(settings, 'use_contextual_retrieval', True)
         )
         
-        # Buscar entidades
+        chunk_repo = PostgresDocumentChunkRepository(session)
+        document_service = DocumentService(
+            document_repository=document_repo,
+            document_chunk_repository=chunk_repo
+        )
+        
+        document_processor = DocumentProcessor(
+            document_service=document_service,
+            vector_repository=vector_repo,
+            text_chunker=text_chunker,
+            openai_client=openai_client,
+            s3_service=s3_service,
+            document_repository=document_repo
+        )
+        
         file_upload = await file_upload_repo.find_by_id(UUID(file_upload_id))
         if not file_upload:
             raise ValueError(f"FileUpload não encontrado: {file_upload_id}")
@@ -103,16 +151,13 @@ async def _process_document_async(file_upload_id: str, processing_job_id: str) -
         if not processing_job:
             raise ValueError(f"DocumentProcessingJob não encontrado: {processing_job_id}")
         
-        # Processar documento
         document = await document_processor.process_uploaded_document(
             file_upload, processing_job
         )
         
-        # Calcular tempo de processamento
         end_time = datetime.utcnow()
         processing_time = (end_time - start_time).total_seconds()
         
-        # Atualizar tempo no job
         processing_job.processing_time_seconds = int(processing_time)
         await job_repo.save(processing_job)
         
@@ -122,6 +167,7 @@ async def _process_document_async(file_upload_id: str, processing_job_id: str) -
             'chunks_created': processing_job.total_chunks,
             'embeddings_generated': processing_job.chunks_processed
         }
+
 
 
 async def _update_job_with_error(processing_job_id: str, error_message: str) -> None:
@@ -217,7 +263,6 @@ async def _cleanup_orphaned_files(**kwargs) -> Dict[str, Any]:
     from datetime import datetime, timedelta
     
     async with get_async_session() as session:
-        # Buscar uploads sem jobs há mais de 1 hora
         cutoff_time = datetime.utcnow() - timedelta(hours=1)
         
         stmt = select(FileUploadModel).where(
@@ -260,7 +305,6 @@ async def _cleanup_expired_uploads(**kwargs) -> Dict[str, Any]:
     from datetime import datetime
     
     async with get_async_session() as session:
-        # Buscar uploads expirados
         now = datetime.utcnow()
         
         stmt = select(FileUploadModel).where(

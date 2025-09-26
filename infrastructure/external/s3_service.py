@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import aioboto3
@@ -21,15 +21,16 @@ class S3Service:
         region: str = "us-east-1",
         access_key: Optional[str] = None,
         secret_key: Optional[str] = None,
-        endpoint_url: Optional[str] = None
+        endpoint_url: Optional[str] = None,
+        public_endpoint_url: Optional[str] = None
     ):
         self.bucket = bucket
         self.region = region
         self.access_key = access_key
         self.secret_key = secret_key
         self.endpoint_url = endpoint_url
+        self.public_endpoint_url = public_endpoint_url or endpoint_url
         
-        # Configurar credenciais
         self._session_config = {}
         if access_key and secret_key:
             self._session_config = {
@@ -37,8 +38,8 @@ class S3Service:
                 "aws_secret_access_key": secret_key,
             }
         
-        # Cliente síncrono para operações simples
         self._sync_client = None
+        self._public_client = None
     
     def _get_sync_client(self):
         """Retorna cliente S3 síncrono"""
@@ -50,6 +51,17 @@ class S3Service:
                 **self._session_config
             )
         return self._sync_client
+    
+    def _get_public_client(self):
+        """Retorna cliente S3 para URLs públicas (presigned)"""
+        if not self._public_client:
+            self._public_client = boto3.client(
+                "s3",
+                region_name=self.region,
+                endpoint_url=self.public_endpoint_url,
+                **self._session_config
+            )
+        return self._public_client
     
     async def _get_async_client(self):
         """Retorna cliente S3 assíncrono"""
@@ -65,25 +77,23 @@ class S3Service:
         s3_key: S3Key,
         content_type: str,
         expires_in: int = 3600
-    ) -> tuple[str, datetime]:
+    ) -> tuple[str, datetime, dict]:
         """
         Gera URL presigned para upload direto ao S3
         
         Returns:
-            tuple: (upload_url, expires_at)
+            tuple: (upload_url, expires_at, upload_fields)
         """
         try:
-            client = self._get_sync_client()
+            client = self._get_public_client()
             
-            # Configurar condições do upload
             conditions = [
                 {"bucket": s3_key.bucket},
                 {"key": s3_key.key},
                 {"Content-Type": content_type},
-                ["content-length-range", 1, 5368709120]  # 1 byte a 5GB
+                ["content-length-range", 1, 5368709120]
             ]
             
-            # Gerar presigned POST (mais seguro que PUT)
             response = client.generate_presigned_post(
                 Bucket=s3_key.bucket,
                 Key=s3_key.key,
@@ -92,15 +102,14 @@ class S3Service:
                 ExpiresIn=expires_in
             )
             
-            expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
             
             logger.info(f"Presigned URL gerada para {s3_key.key}, expira em {expires_at}")
             
-            # Para compatibilidade, retornar URL simples
-            # Em produção, o frontend usaria response['url'] + response['fields']
             upload_url = response['url']
+            upload_fields = response['fields']
             
-            return upload_url, expires_at
+            return upload_url, expires_at, upload_fields
             
         except (BotoCoreError, ClientError) as e:
             logger.error(f"Erro ao gerar presigned URL: {e}")
@@ -232,7 +241,6 @@ class S3Service:
             deleted_count = 0
             
             async with await self._get_async_client() as client:
-                # Listar objetos com prefixo
                 paginator = client.get_paginator('list_objects_v2')
                 
                 async for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
@@ -240,7 +248,6 @@ class S3Service:
                         continue
                     
                     for obj in page['Contents']:
-                        # Verificar se é mais antigo que o limite
                         if obj['LastModified'].replace(tzinfo=None) < cutoff_time:
                             s3_key = S3Key(bucket=self.bucket, key=obj['Key'], region=self.region)
                             
@@ -263,7 +270,6 @@ class S3Service:
         """
         try:
             async with await self._get_async_client() as client:
-                # Tentar listar buckets ou fazer head_bucket
                 await client.head_bucket(Bucket=self.bucket)
             
             logger.info(f"Conexão S3 OK: bucket '{self.bucket}' acessível")

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -20,7 +20,7 @@ class FileUpload:
     upload_url: Optional[str] = None
     expires_at: Optional[datetime] = None
     uploaded_at: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
     def __post_init__(self):
         self._validate_business_rules()
@@ -75,7 +75,7 @@ class FileUpload:
     
     def mark_uploaded(self) -> None:
         """Marca como upload concluído"""
-        self.uploaded_at = datetime.utcnow()
+        self.uploaded_at = datetime.now(timezone.utc)
     
     @property
     def is_uploaded(self) -> bool:
@@ -87,7 +87,7 @@ class FileUpload:
         """Verifica se URL de upload expirou"""
         if not self.expires_at:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
     
     @property
     def file_extension(self) -> str:

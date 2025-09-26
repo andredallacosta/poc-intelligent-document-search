@@ -16,18 +16,23 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-intelligent_document_search}
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
-      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY:-test}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY:-test}
       - S3_BUCKET=${S3_BUCKET:-documents-dev}
       - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://localstack:4566}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      localstack:
+        condition: service_started
     volumes:
       - ./logs:/app/logs
       - .:/app  # Hot reload para desenvolvimento
     restart: unless-stopped
-    command: uvicorn interface.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "alembic upgrade head && uvicorn interface.main:app --host 0.0.0.0 --port 8000 --reload"
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -41,6 +46,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-intelligent_document_search}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -50,6 +60,18 @@ services:
       - redis_data:/data
       - ./redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+
+  localstack:
+    image: localstack/localstack:3.0
+    ports:
+      - "4566:4566"  # LocalStack main port
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
     restart: unless-stopped
 
   worker-documents:
@@ -64,13 +86,18 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-intelligent_document_search}
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
-      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY:-test}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY:-test}
       - S3_BUCKET=${S3_BUCKET:-documents-dev}
       - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://localstack:4566}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      localstack:
+        condition: service_started
     volumes:
       - ./logs:/app/logs
       - .:/app  # Hot reload para desenvolvimento
@@ -88,13 +115,18 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-intelligent_document_search}
       - REDIS_URL=redis://redis:6379/0
-      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
-      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY:-test}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY:-test}
       - S3_BUCKET=${S3_BUCKET:-documents-dev}
       - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://localstack:4566}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      localstack:
+        condition: service_started
     volumes:
       - ./logs:/app/logs
       - .:/app  # Hot reload para desenvolvimento
