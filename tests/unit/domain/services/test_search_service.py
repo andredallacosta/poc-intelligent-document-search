@@ -27,6 +27,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=sample_search_results)
         
         results = await search_service.search_similar_content(
+            query="test query",
             query_embedding=sample_embedding,
             n_results=3,
             similarity_threshold=0.7
@@ -46,6 +47,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=[])
         
         await search_service.search_similar_content(
+            query="test query with metadata",
             query_embedding=sample_embedding,
             n_results=5,
             similarity_threshold=0.8,
@@ -64,6 +66,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=[])
         
         results = await search_service.search_similar_content(
+            query="empty test query",
             query_embedding=sample_embedding,
             n_results=3
         )
@@ -106,6 +109,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=[])
         
         await search_service.search_by_document_type(
+            query="test query for pdf",
             query_embedding=sample_embedding,
             document_type="pdf",
             n_results=3
@@ -120,6 +124,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=[])
         
         await search_service.search_by_source(
+            query="test query for source",
             query_embedding=sample_embedding,
             source="test_doc.pdf",
             n_results=5
@@ -134,6 +139,7 @@ class TestSearchService:
         mock_vector_repository.search_similar_chunks = AsyncMock(return_value=[])
         
         await search_service.search_similar_content(
+            query="custom parameters test",
             query_embedding=sample_embedding,
             n_results=10,
             similarity_threshold=0.9,

@@ -281,5 +281,6 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content.assert_called_once()
         call_args = mock_search_service.search_similar_content.call_args
         
+        assert call_args[1]["query"] == "Como escrever um ofício oficial?"
         assert call_args[1]["n_results"] == 5
-        assert call_args[1]["similarity_threshold"] == 0.7
+        # similarity_threshold is None (uses adaptive threshold)

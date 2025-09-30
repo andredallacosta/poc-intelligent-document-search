@@ -63,7 +63,8 @@ class TestSearchServiceMissingCoverage:
         mock_vector_repository.search_similar_chunks.return_value = sample_search_results
         
         results = await search_service.search_similar_content(
-            query_embedding, 
+            query="threshold filtering test",
+            query_embedding=query_embedding, 
             n_results=5, 
             similarity_threshold=0.85
         )
@@ -131,7 +132,10 @@ class TestSearchServiceMissingCoverage:
         mock_vector_repository.search_similar_chunks.side_effect = Exception("Database error")
         
         with pytest.raises(Exception) as exc_info:
-            await search_service.search_similar_content(query_embedding)
+            await search_service.search_similar_content(
+                query="exception test",
+                query_embedding=query_embedding
+            )
         
         assert "Failed to search similar content" in str(exc_info.value)
     

@@ -1,9 +1,9 @@
 import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi import HTTPException
 from uuid import uuid4
 
-from interface.api.v1.endpoints.chat import ask_question, health_check, get_available_models, get_chat_use_case
+from interface.api.v1.endpoints.chat import ask_question, health_check, get_available_models
 from interface.schemas.chat import ChatRequest, ChatResponse
 from application.use_cases.chat_with_documents import ChatWithDocumentsUseCase
 from application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO, DocumentReferenceDTO
@@ -51,23 +51,24 @@ class TestChatEndpoints:
     
     @pytest.mark.asyncio
     async def test_ask_question_success(self, sample_chat_request, sample_chat_response_dto, mock_chat_use_case):
-        mock_chat_use_case.execute = AsyncMock(return_value=sample_chat_response_dto)
-        
-        response = await ask_question(sample_chat_request, mock_chat_use_case)
-        
-        assert isinstance(response, ChatResponse)
-        assert response.response == "The capital of France is Paris."
-        assert response.session_id == sample_chat_response_dto.session_id
-        assert len(response.sources) == 1
-        assert response.sources[0].source == "geography.pdf"
-        assert response.processing_time == 1.2
-        
-        mock_chat_use_case.execute.assert_called_once()
-        call_args = mock_chat_use_case.execute.call_args[0][0]
-        assert isinstance(call_args, ChatRequestDTO)
-        assert call_args.message == "What is the capital of France?"
-        assert call_args.session_id is None
-        assert call_args.metadata == {}
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(return_value=sample_chat_response_dto)
+            
+            response = await ask_question(sample_chat_request)
+            
+            assert isinstance(response, ChatResponse)
+            assert response.response == "The capital of France is Paris."
+            assert response.session_id == sample_chat_response_dto.session_id
+            assert len(response.sources) == 1
+            assert response.sources[0].source == "geography.pdf"
+            assert response.processing_time == 1.2
+            
+            mock_chat_use_case.execute.assert_called_once()
+            call_args = mock_chat_use_case.execute.call_args[0][0]
+            assert isinstance(call_args, ChatRequestDTO)
+            assert call_args.message == "What is the capital of France?"
+            assert call_args.session_id is None
+            assert call_args.metadata == {}
     
     @pytest.mark.asyncio
     async def test_ask_question_with_session_id(self, mock_chat_use_case, sample_chat_response_dto):
@@ -78,71 +79,82 @@ class TestChatEndpoints:
             metadata={"context": "follow-up"}
         )
         
-        mock_chat_use_case.execute = AsyncMock(return_value=sample_chat_response_dto)
-        
-        response = await ask_question(request, mock_chat_use_case)
-        
-        assert isinstance(response, ChatResponse)
-        
-        call_args = mock_chat_use_case.execute.call_args[0][0]
-        assert call_args.session_id == session_id
-        assert call_args.metadata == {"context": "follow-up"}
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(return_value=sample_chat_response_dto)
+            
+            response = await ask_question(request)
+            
+            assert isinstance(response, ChatResponse)
+            
+            call_args = mock_chat_use_case.execute.call_args[0][0]
+            assert call_args.session_id == session_id
+            assert call_args.metadata == {"context": "follow-up"}
     
     @pytest.mark.asyncio
     async def test_ask_question_invalid_message_error(self, mock_chat_use_case):
         request = ChatRequest(message="Test message")
-        mock_chat_use_case.execute = AsyncMock(side_effect=InvalidMessageError("Message too short"))
         
-        with pytest.raises(HTTPException) as exc_info:
-            await ask_question(request, mock_chat_use_case)
-        
-        assert exc_info.value.status_code == 400
-        assert "Message too short" in str(exc_info.value.detail)
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(side_effect=InvalidMessageError("Message too short"))
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await ask_question(request)
+            
+            assert exc_info.value.status_code == 400
+            assert "Message too short" in str(exc_info.value.detail)
     
     @pytest.mark.asyncio
     async def test_ask_question_session_not_found_error(self, mock_chat_use_case):
         session_id = uuid4()
         request = ChatRequest(message="Test message", session_id=session_id)
-        mock_chat_use_case.execute = AsyncMock(side_effect=SessionNotFoundError(f"Session {session_id} not found"))
         
-        with pytest.raises(HTTPException) as exc_info:
-            await ask_question(request, mock_chat_use_case)
-        
-        assert exc_info.value.status_code == 404
-        assert "not found" in str(exc_info.value.detail)
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(side_effect=SessionNotFoundError(f"Session {session_id} not found"))
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await ask_question(request)
+            
+            assert exc_info.value.status_code == 404
+            assert "not found" in str(exc_info.value.detail)
     
     @pytest.mark.asyncio
     async def test_ask_question_rate_limit_exceeded_error(self, mock_chat_use_case):
         request = ChatRequest(message="Test message")
-        mock_chat_use_case.execute = AsyncMock(side_effect=RateLimitExceededError("Rate limit exceeded"))
         
-        with pytest.raises(HTTPException) as exc_info:
-            await ask_question(request, mock_chat_use_case)
-        
-        assert exc_info.value.status_code == 429
-        assert "Rate limit exceeded" in str(exc_info.value.detail)
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(side_effect=RateLimitExceededError("Rate limit exceeded"))
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await ask_question(request)
+            
+            assert exc_info.value.status_code == 429
+            assert "Rate limit exceeded" in str(exc_info.value.detail)
     
     @pytest.mark.asyncio
     async def test_ask_question_generic_chat_error(self, mock_chat_use_case):
         request = ChatRequest(message="Test message")
-        mock_chat_use_case.execute = AsyncMock(side_effect=ChatError("Generic chat error"))
         
-        with pytest.raises(HTTPException) as exc_info:
-            await ask_question(request, mock_chat_use_case)
-        
-        assert exc_info.value.status_code == 500
-        assert "Generic chat error" in str(exc_info.value.detail)
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(side_effect=ChatError("Generic chat error"))
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await ask_question(request)
+            
+            assert exc_info.value.status_code == 500
+            assert "Generic chat error" in str(exc_info.value.detail)
     
     @pytest.mark.asyncio
     async def test_ask_question_unexpected_error(self, mock_chat_use_case):
         request = ChatRequest(message="Test message")
-        mock_chat_use_case.execute = AsyncMock(side_effect=Exception("Unexpected error"))
         
-        with pytest.raises(HTTPException) as exc_info:
-            await ask_question(request, mock_chat_use_case)
-        
-        assert exc_info.value.status_code == 500
-        assert "Internal server error" in str(exc_info.value.detail)
+        with patch('interface.dependencies.container.create_chat_use_case', return_value=mock_chat_use_case):
+            mock_chat_use_case.execute = AsyncMock(side_effect=Exception("Unexpected error"))
+            
+            with pytest.raises(HTTPException) as exc_info:
+                await ask_question(request)
+            
+            assert exc_info.value.status_code == 500
+            assert "Internal server error" in str(exc_info.value.detail)
     
     @pytest.mark.asyncio
     async def test_health_check_success(self):
@@ -199,21 +211,14 @@ class TestChatEndpoints:
         assert response["models"][0]["max_tokens"] == 4096
     
     @pytest.mark.asyncio
-    async def test_get_chat_use_case_dependency_injection(self):
+    async def test_create_chat_use_case_dependency_injection(self):
         from unittest.mock import patch, AsyncMock
         
-        with patch('interface.dependencies.container.get_chat_use_case') as mock_container_get_use_case:
+        with patch('interface.dependencies.container.create_chat_use_case') as mock_create_use_case:
             mock_use_case = Mock(spec=ChatWithDocumentsUseCase)
-            mock_container_get_use_case.return_value = mock_use_case
+            mock_create_use_case.return_value = mock_use_case
             
-            with patch('interface.dependencies.container.get_chat_service') as mock_get_chat_service, \
-                 patch('interface.dependencies.container.get_search_service') as mock_get_search_service, \
-                 patch('interface.dependencies.container.get_llm_service') as mock_get_llm_service:
-                
-                mock_get_chat_service.return_value = Mock()
-                mock_get_search_service.return_value = AsyncMock()
-                mock_get_llm_service.return_value = Mock()
-                
-                result = await get_chat_use_case()
-                
-                assert isinstance(result, ChatWithDocumentsUseCase)
+            from interface.dependencies.container import create_chat_use_case
+            result = await create_chat_use_case()
+            
+            assert result == mock_use_case
