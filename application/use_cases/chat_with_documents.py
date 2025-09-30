@@ -48,9 +48,11 @@ class ChatWithDocumentsUseCase:
             )
             query_embedding = Embedding.from_openai(query_embedding_vector)
 
-            # Search for relevant documents
+            # Search for relevant documents using adaptive threshold
             search_results = await self._search_service.search_similar_content(
-                query_embedding=query_embedding, n_results=5, similarity_threshold=0.7
+                query=request.message,
+                query_embedding=query_embedding, 
+                n_results=5
             )
 
             # Convert search results to document references

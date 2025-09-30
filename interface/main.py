@@ -16,6 +16,20 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+# Reduce SQLAlchemy logging verbosity
+sqlalchemy_level = getattr(logging, settings.sqlalchemy_log_level)
+logging.getLogger("sqlalchemy.engine").setLevel(sqlalchemy_level)
+logging.getLogger("sqlalchemy.pool").setLevel(sqlalchemy_level)
+logging.getLogger("sqlalchemy.dialects").setLevel(sqlalchemy_level)
+
+# Reduce external libraries logging verbosity
+external_libs_level = getattr(logging, settings.external_libs_log_level)
+logging.getLogger("openai._base_client").setLevel(external_libs_level)
+logging.getLogger("httpcore.connection").setLevel(external_libs_level)
+logging.getLogger("httpcore.http11").setLevel(external_libs_level)
+logging.getLogger("urllib3.connectionpool").setLevel(external_libs_level)
+logging.getLogger("httpx").setLevel(external_libs_level)
+
 logger = logging.getLogger(__name__)
 
 

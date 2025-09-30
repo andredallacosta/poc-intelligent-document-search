@@ -115,8 +115,8 @@ class DocumentSearchRequest(BaseModel):
         ..., min_length=1, max_length=500, description="Consulta de busca"
     )
     n_results: int = Field(5, ge=1, le=20, description="Número de resultados")
-    similarity_threshold: float = Field(
-        0.7, ge=0.0, le=1.0, description="Limite de similaridade"
+    similarity_threshold: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Limite de similaridade (usa threshold adaptativo se não especificado)"
     )
     document_ids: Optional[List[UUID]] = Field(
         None, description="IDs específicos de documentos"

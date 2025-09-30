@@ -24,7 +24,7 @@ class DatabaseConnection:
             # Debug mode: use NullPool (no pooling)
             self._engine = create_async_engine(
                 settings.database_url,
-                echo=settings.debug,
+                echo=False,
                 poolclass=NullPool,
                 pool_pre_ping=True,
             )

@@ -50,9 +50,16 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=50, env="CHUNK_OVERLAP")
     use_contextual_retrieval: bool = Field(default=True, env="USE_CONTEXTUAL_RETRIEVAL")
 
-    # Search
     default_search_results: int = Field(default=5, env="DEFAULT_SEARCH_RESULTS")
-    similarity_threshold: float = Field(default=0.7, env="SIMILARITY_THRESHOLD")
+    
+    # Similarity Thresholds - Adaptive based on query type
+    similarity_threshold_default: float = Field(default=0.45, env="SIMILARITY_THRESHOLD_DEFAULT")
+    similarity_threshold_specific: float = Field(default=0.5, env="SIMILARITY_THRESHOLD_SPECIFIC")  
+    similarity_threshold_general: float = Field(default=0.35, env="SIMILARITY_THRESHOLD_GENERAL")
+    similarity_threshold_technical: float = Field(default=0.6, env="SIMILARITY_THRESHOLD_TECHNICAL")
+    
+    # Legacy threshold for backward compatibility
+    similarity_threshold: float = Field(default=0.45, env="SIMILARITY_THRESHOLD")
 
     # Rate Limiting
     max_messages_per_session: int = Field(default=100, env="MAX_MESSAGES_PER_SESSION")
@@ -83,6 +90,8 @@ class Settings(BaseSettings):
     # Monitoring
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    sqlalchemy_log_level: str = Field(default="WARNING", env="SQLALCHEMY_LOG_LEVEL")
+    external_libs_log_level: str = Field(default="WARNING", env="EXTERNAL_LIBS_LOG_LEVEL")
 
     model_config = ConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

@@ -75,7 +75,7 @@ class DocumentSearchRequestDTO:
 
     query: str
     n_results: int = 5
-    similarity_threshold: float = 0.7
+    similarity_threshold: Optional[float] = None
     document_ids: Optional[List[UUID]] = None
     content_types: Optional[List[str]] = None
 

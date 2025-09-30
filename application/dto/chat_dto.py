@@ -34,7 +34,7 @@ class ChatResponseDTO:
 class SearchRequestDTO:
     query: str
     n_results: int = 5
-    similarity_threshold: float = 0.7
+    similarity_threshold: Optional[float] = None
     document_type: Optional[str] = None
     source: Optional[str] = None
 

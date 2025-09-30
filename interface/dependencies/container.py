@@ -22,6 +22,7 @@ from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
+from domain.services.threshold_service import ThresholdService
 from infrastructure.config.settings import settings
 from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
@@ -256,11 +257,17 @@ def get_chat_service() -> ChatService:
     return container.get_chat_service()
 
 
+def get_threshold_service() -> ThresholdService:
+    """Dependency para ThresholdService"""
+    return ThresholdService(settings=settings)
+
+
 async def get_search_service(
     vector_repo: PostgresVectorRepository = Depends(get_postgres_vector_repository),
+    threshold_service: ThresholdService = Depends(get_threshold_service),
 ) -> SearchService:
     """Dependency para SearchService com PostgreSQL"""
-    return SearchService(vector_repository=vector_repo)
+    return SearchService(vector_repository=vector_repo, threshold_service=threshold_service)
 
 
 async def get_chat_use_case(
