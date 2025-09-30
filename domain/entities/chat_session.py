@@ -10,7 +10,7 @@ from domain.value_objects.usuario_id import UsuarioId
 @dataclass
 class ChatSession:
     id: UUID
-    usuario_id: Optional[UsuarioId] = None  # NULL para sessões anônimas
+    usuario_id: Optional[UsuarioId] = None
     messages: List[Message] = field(default_factory=list)
     created_at: datetime = None
     updated_at: datetime = None

@@ -31,15 +31,12 @@ class PostgresVectorRepository(VectorRepository):
     ) -> bool:
         """Adiciona embedding de um chunk"""
         try:
-            # Verifica se o chunk existe
             chunk_exists = await self._chunk_exists(chunk_id)
             if not chunk_exists:
                 raise DocumentProcessingError(f"Chunk {chunk_id} não encontrado")
 
-            # Remove embedding existente se houver
             await self._delete_chunk_embedding_internal(chunk_id)
 
-            # Converte embedding para formato pgvector
             vector_data = self._embedding_to_vector(embedding)
 
             model = DocumentoEmbeddingModel(
@@ -72,10 +69,8 @@ class PostgresVectorRepository(VectorRepository):
     ) -> List[SearchResult]:
         """Busca chunks similares usando pgvector"""
         try:
-            # Converte query embedding para formato pgvector
             query_vector = self._embedding_to_vector(query_embedding)
 
-            # Constrói query com JOIN para pegar dados do chunk e documento
             stmt = select(
                 DocumentoEmbeddingModel.embedding,
                 DocumentoChunkModel.id,
@@ -87,7 +82,6 @@ class PostgresVectorRepository(VectorRepository):
                 DocumentoChunkModel.criado_em,
                 DocumentoModel.titulo,
                 DocumentoModel.meta_data,
-                # Calcula similaridade coseno usando pgvector
                 (
                     1 - DocumentoEmbeddingModel.embedding.cosine_distance(query_vector)
                 ).label("similarity_score"),
@@ -101,7 +95,6 @@ class PostgresVectorRepository(VectorRepository):
                 )
             )
 
-            # Aplica filtro de similaridade
             if similarity_threshold > 0:
                 stmt = stmt.where(
                     (
@@ -113,7 +106,6 @@ class PostgresVectorRepository(VectorRepository):
                     >= similarity_threshold
                 )
 
-            # Aplica filtros de metadata se fornecidos
             if metadata_filter:
                 for key, value in metadata_filter.items():
                     stmt = stmt.where(
@@ -121,7 +113,6 @@ class PostgresVectorRepository(VectorRepository):
                         == value
                     )
 
-            # Ordena por similaridade e limita resultados
             stmt = stmt.order_by(
                 (
                     1 - DocumentoEmbeddingModel.embedding.cosine_distance(query_vector)
@@ -133,7 +124,6 @@ class PostgresVectorRepository(VectorRepository):
 
             search_results = []
             for row in rows:
-                # Reconstrói o chunk
                 chunk = DocumentChunk(
                     id=row.id,
                     document_id=row.documento_id,
@@ -146,11 +136,9 @@ class PostgresVectorRepository(VectorRepository):
                     created_at=row.criado_em,
                 )
 
-                # Calcula distância (1 - similarity)
                 similarity_score = float(row.similarity_score)
                 distance = 1.0 - similarity_score
 
-                # Metadata do documento
                 doc_metadata = {
                     "document_title": row.titulo,
                     "document_metadata": row.meta_data or {},
@@ -179,7 +167,6 @@ class PostgresVectorRepository(VectorRepository):
     async def delete_document_embeddings(self, document_id: UUID) -> int:
         """Remove todos os embeddings de um documento"""
         try:
-            # Busca todos os chunks do documento
             chunk_stmt = select(DocumentoChunkModel.id).where(
                 DocumentoChunkModel.documento_id == document_id
             )
@@ -189,7 +176,6 @@ class PostgresVectorRepository(VectorRepository):
             if not chunk_ids:
                 return 0
 
-            # Remove embeddings dos chunks
             delete_stmt = delete(DocumentoEmbeddingModel).where(
                 DocumentoEmbeddingModel.chunk_id.in_(chunk_ids)
             )
@@ -209,7 +195,6 @@ class PostgresVectorRepository(VectorRepository):
         self, chunk_id: UUID, embedding: Embedding, metadata: Dict = None
     ) -> bool:
         """Atualiza embedding de um chunk"""
-        # Para pgvector, é mais eficiente deletar e inserir novamente
         await self._delete_chunk_embedding_internal(chunk_id)
         return await self.add_chunk_embedding(chunk_id, embedding, metadata)
 
@@ -295,7 +280,6 @@ class PostgresVectorRepository(VectorRepository):
     def _vector_to_embedding(self, vector_data) -> Embedding:
         """Converte dados pgvector para Embedding"""
         try:
-            # pgvector retorna como lista de floats
             if hasattr(vector_data, "__iter__"):
                 vector_list = list(vector_data)
             else:
@@ -309,11 +293,7 @@ class PostgresVectorRepository(VectorRepository):
     async def optimize_index(self) -> bool:
         """Otimiza índice IVFFlat para melhor performance"""
         try:
-            # Recompila estatísticas do índice
             await self._session.execute(text("ANALYZE documento_embedding"))
-
-            # Opcionalmente, recria o índice se necessário
-            # (isso seria feito em manutenção programada)
 
             logger.info("Índice pgvector otimizado")
             return True

@@ -91,7 +91,7 @@ class ChatService:
     async def get_conversation_history(
         self, session_id: UUID, limit: Optional[int] = None
     ) -> List[Message]:
-        await self.get_session(session_id)  # Validate session exists
+        await self.get_session(session_id)
         return await self._message_repository.find_messages_by_session_id(
             session_id, limit=limit
         )

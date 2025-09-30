@@ -6,7 +6,6 @@ from domain.entities.document import Document, DocumentChunk
 from domain.value_objects.document_metadata import DocumentMetadata
 from domain.value_objects.embedding import Embedding
 
-
 class TestDocumentChunk:
     
     def test_create_document_chunk(self, sample_embedding):
@@ -40,7 +39,6 @@ class TestDocumentChunk:
         assert chunk.embedding is None
         assert chunk.content == "Test content"
 
-
 class TestDocument:
     
     def test_create_document(self, sample_document_metadata):
@@ -56,7 +54,7 @@ class TestDocument:
         assert doc.title == "Test Document"
         assert doc.content == "Test content"
         assert doc.chunk_count == 0
-        assert doc.word_count == 2  # "Test content"
+        assert doc.word_count == 2
         assert isinstance(doc.created_at, datetime)
         assert isinstance(doc.updated_at, datetime)
     
@@ -101,7 +99,7 @@ class TestDocument:
             chunks=[]
         )
         
-        assert doc.word_count == 8  # Count words in content
+        assert doc.word_count == 8
     
     def test_document_auto_generates_id_and_timestamps(self, sample_document_metadata):
         doc = Document(

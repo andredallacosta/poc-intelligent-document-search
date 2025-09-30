@@ -11,7 +11,6 @@ from domain.value_objects.embedding import Embedding
 from domain.repositories.vector_repository import SearchResult
 from application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO, DocumentReferenceDTO
 
-
 class MockFactory:
     """Factory for creating mock objects and test data"""
     
@@ -81,7 +80,6 @@ class MockFactory:
             chunks=[]
         )
         
-        # Add chunks
         for i in range(chunk_count):
             chunk = MockFactory.create_document_chunk(
                 content=f"Chunk {i} content from {title}",
@@ -228,7 +226,6 @@ class MockFactory:
                 "total_tokens": 150
             }
         }
-
 
 class MockServiceFactory:
     """Factory for creating mock services"""

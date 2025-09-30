@@ -43,7 +43,6 @@ class ProcessUploadedDocumentUseCase:
             BusinessRuleViolationError: Se upload não encontrado ou inválido
         """
         try:
-            # Buscar FileUpload
             file_upload = await self.file_upload_repository.find_by_id(
                 request.upload_id
             )
@@ -52,10 +51,8 @@ class ProcessUploadedDocumentUseCase:
                     f"Upload não encontrado: {request.upload_id}"
                 )
 
-            # Validar estado do upload
             self._validate_upload_state(file_upload)
 
-            # Verificar se já existe job para este upload
             existing_job = await self.job_repository.find_by_upload_id(
                 request.upload_id
             )
@@ -69,17 +66,14 @@ class ProcessUploadedDocumentUseCase:
                     estimated_time=self._get_estimated_time(existing_job.status),
                 )
 
-            # Criar job de processamento
             job = DocumentProcessingJob.create(
                 document_id=file_upload.document_id,
                 upload_id=request.upload_id,
                 initial_step="Preparando processamento...",
             )
 
-            # Salvar job
             await self.job_repository.save(job)
 
-            # Marcar upload como processado
             file_upload.mark_uploaded()
             await self.file_upload_repository.save(file_upload)
 
@@ -87,13 +81,11 @@ class ProcessUploadedDocumentUseCase:
                 f"Job de processamento criado: {job.id} para upload {request.upload_id}"
             )
 
-            # 🚀 REDIS QUEUE: Enfileirar processamento assíncrono REAL
             try:
                 redis_job_id = redis_queue_service.enqueue_document_processing(
                     file_upload_id=file_upload.id, job_id=job.id, priority="normal"
                 )
 
-                # Salvar ID do job Redis no metadata
                 job.metadata["redis_job_id"] = redis_job_id
                 await self.job_repository.save(job)
 
@@ -103,7 +95,6 @@ class ProcessUploadedDocumentUseCase:
 
             except Exception as e:
                 logger.error(f"Erro ao enfileirar no Redis: {e}")
-                # Marcar job como falhou
                 job.fail_with_error(f"Falha ao enfileirar: {str(e)}")
                 await self.job_repository.save(job)
                 raise BusinessRuleViolationError(
@@ -129,9 +120,6 @@ class ProcessUploadedDocumentUseCase:
 
         if file_upload.is_expired:
             raise BusinessRuleViolationError("Upload expirou")
-
-        # Verificar se arquivo existe no S3 seria ideal, mas pode ser custoso
-        # Em produção, isso seria verificado no processamento assíncrono
 
     def _get_estimated_time(self, status: ProcessingStatus) -> str:
         """Retorna tempo estimado baseado no status"""

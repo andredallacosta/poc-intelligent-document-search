@@ -60,7 +60,6 @@ class DocumentProcessingJob:
         if not self.current_step:
             self.current_step = self.status.description
 
-        # Atualiza progresso baseado no status se não foi definido manualmente
         if self.progress == 0 or self.progress == self.status.progress_percentage:
             self.progress = self.status.progress_percentage
 
@@ -99,7 +98,6 @@ class DocumentProcessingJob:
         if error_message:
             self.error_message = error_message
 
-        # Marcar como iniciado se saiu de UPLOADED
         if (
             old_status == ProcessingStatus.UPLOADED
             and status != ProcessingStatus.UPLOADED
@@ -107,7 +105,6 @@ class DocumentProcessingJob:
             if not self.started_at:
                 self.started_at = datetime.now(timezone.utc)
 
-        # Marcar como concluído se chegou em status final
         if status.is_final and not self.completed_at:
             self.completed_at = datetime.now(timezone.utc)
             self._calculate_processing_time()
@@ -117,12 +114,9 @@ class DocumentProcessingJob:
         self.chunks_processed = chunks_processed
         self.total_chunks = total_chunks
 
-        # Calcular progresso baseado em chunks se estiver em embedding
         if self.status == ProcessingStatus.EMBEDDING and total_chunks > 0:
-            chunk_progress = (
-                chunks_processed / total_chunks
-            ) * 30  # 30% da fase embedding
-            base_progress = 55  # Progresso base até embedding
+            chunk_progress = (chunks_processed / total_chunks) * 30
+            base_progress = 55
             self.progress = min(100, int(base_progress + chunk_progress))
 
             self.current_step = (

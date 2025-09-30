@@ -4,14 +4,14 @@ from enum import Enum
 class ProcessingStatus(Enum):
     """Status do processamento de documentos"""
 
-    UPLOADED = "uploaded"  # Upload concluído, aguardando processamento
-    EXTRACTING = "extracting"  # Extraindo texto do documento
-    CHECKING_DUPLICATES = "checking_duplicates"  # Verificando duplicatas
-    CHUNKING = "chunking"  # Dividindo em chunks
-    EMBEDDING = "embedding"  # Gerando embeddings
-    COMPLETED = "completed"  # Processamento concluído com sucesso
-    FAILED = "failed"  # Falha no processamento
-    DUPLICATE = "duplicate"  # Documento duplicado detectado
+    UPLOADED = "uploaded"
+    EXTRACTING = "extracting"
+    CHECKING_DUPLICATES = "checking_duplicates"
+    CHUNKING = "chunking"
+    EMBEDDING = "embedding"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    DUPLICATE = "duplicate"
 
     @property
     def is_final(self) -> bool:

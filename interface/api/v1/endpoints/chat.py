@@ -33,23 +33,18 @@ async def ask_question(
     try:
         logger.info(f"Processing chat request: '{request.message[:50]}...'")
 
-        # Import dependencies from container
         from interface.dependencies.container import create_chat_use_case
 
-        # Create use case with proper dependencies
         chat_use_case = await create_chat_use_case()
 
-        # Convert Pydantic model to DTO
         chat_request_dto = ChatRequestDTO(
             message=request.message,
             session_id=request.session_id,
             metadata=request.metadata,
         )
 
-        # Execute use case
         response_dto = await chat_use_case.execute(chat_request_dto)
 
-        # Convert DTO to Pydantic response
         return ChatResponse(
             response=response_dto.response,
             session_id=response_dto.session_id,

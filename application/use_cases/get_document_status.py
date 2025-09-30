@@ -30,7 +30,6 @@ class GetDocumentStatusUseCase:
             BusinessRuleViolationError: Se documento não encontrado
         """
         try:
-            # Buscar job por document_id
             job = await self.job_repository.find_by_document_id(document_id)
             if not job:
                 raise BusinessRuleViolationError(
@@ -83,7 +82,6 @@ class GetJobStatusUseCase:
             BusinessRuleViolationError: Se job não encontrado
         """
         try:
-            # Buscar job por ID
             job = await self.job_repository.find_by_id(job_id)
             if not job:
                 raise BusinessRuleViolationError(f"Job não encontrado: {job_id}")

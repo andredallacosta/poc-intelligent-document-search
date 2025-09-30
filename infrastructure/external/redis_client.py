@@ -17,10 +17,8 @@ class RedisClient:
         url: str = None,
     ):
         if url:
-            # Use URL if provided
             self.redis = redis.from_url(url, decode_responses=decode_responses)
         else:
-            # Use individual parameters
             self.redis = redis.Redis(
                 host=host,
                 port=port,

@@ -102,7 +102,7 @@ class PostgresSessionRepository(SessionRepository):
             usuario_id=(
                 UsuarioId.from_uuid(model.usuario_id) if model.usuario_id else None
             ),
-            messages=[],  # Messages são carregadas separadamente
+            messages=[],
             created_at=model.criado_em,
             updated_at=model.atualizado_em,
             is_active=model.ativo,
@@ -128,7 +128,7 @@ class PostgresMessageRepository(MessageRepository):
                 referencias_documento=self._references_to_dict(
                     message.document_references
                 ),
-                tokens_usados=0,  # Será implementado quando tivermos controle de tokens
+                tokens_usados=0,
                 meta_data=message.metadata,
                 criado_em=message.created_at,
             )

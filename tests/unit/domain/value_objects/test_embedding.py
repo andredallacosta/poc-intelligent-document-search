@@ -4,7 +4,6 @@ from typing import List
 
 from domain.value_objects.embedding import Embedding
 
-
 class TestEmbedding:
     
     def test_create_embedding_from_openai(self):
@@ -67,11 +66,10 @@ class TestEmbedding:
         
         distance = embedding1.euclidean_distance(embedding2)
         
-        # Distance should be sqrt(2) for unit vectors at 90 degrees
         assert distance == pytest.approx(np.sqrt(2), abs=1e-6)
     
     def test_embedding_magnitude(self):
-        vector = [3.0, 4.0]  # 3-4-5 triangle
+        vector = [3.0, 4.0]
         embedding = Embedding.from_openai(vector)
         
         magnitude = embedding.magnitude
@@ -82,7 +80,6 @@ class TestEmbedding:
         vector = [3.0, 4.0]
         embedding = Embedding.from_openai(vector)
         
-        # Test magnitude calculation (should be 5.0 for 3-4-5 triangle)
         assert embedding.magnitude == pytest.approx(5.0, abs=1e-6)
     
     def test_embedding_zero_magnitude(self):

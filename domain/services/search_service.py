@@ -9,7 +9,11 @@ from domain.value_objects.embedding import Embedding
 
 class SearchService:
 
-    def __init__(self, vector_repository: VectorRepository, threshold_service: Optional[ThresholdService] = None):
+    def __init__(
+        self,
+        vector_repository: VectorRepository,
+        threshold_service: Optional[ThresholdService] = None,
+    ):
         self._vector_repository = vector_repository
         self._threshold_service = threshold_service
 
@@ -23,13 +27,14 @@ class SearchService:
     ) -> List[SearchResult]:
         """Search with adaptive threshold system"""
         try:
-            # Use adaptive threshold if not explicitly provided
             if similarity_threshold is None:
                 if self._threshold_service is not None:
-                    similarity_threshold = self._threshold_service.get_threshold_for_query(query)
+                    similarity_threshold = (
+                        self._threshold_service.get_threshold_for_query(query)
+                    )
                 else:
-                    similarity_threshold = 0.45  # Fallback if no threshold service
-            
+                    similarity_threshold = 0.45
+
             results = await self._vector_repository.search_similar_chunks(
                 query_embedding=query_embedding,
                 n_results=n_results,
@@ -43,7 +48,11 @@ class SearchService:
             raise SearchError(f"Failed to search similar content: {str(e)}")
 
     async def search_by_document_type(
-        self, query: str, query_embedding: Embedding, document_type: str, n_results: int = 5
+        self,
+        query: str,
+        query_embedding: Embedding,
+        document_type: str,
+        n_results: int = 5,
     ) -> List[SearchResult]:
         metadata_filter = {"file_type": document_type}
 

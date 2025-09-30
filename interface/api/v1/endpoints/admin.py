@@ -18,7 +18,6 @@ from interface.dependencies.container import (
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-# Endpoints para Prefeituras
 @router.post("/prefeituras", response_model=dict)
 async def create_prefeitura(
     nome: str,
@@ -100,7 +99,6 @@ async def get_prefeitura(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Endpoints para Usuários
 @router.post("/usuarios", response_model=dict)
 async def create_usuario(
     nome: str,
@@ -196,7 +194,6 @@ async def get_usuario(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Endpoints de estatísticas
 @router.get("/stats", response_model=dict)
 async def get_admin_stats(
     prefeitura_repo: PrefeituraRepository = Depends(get_postgres_prefeitura_repository),

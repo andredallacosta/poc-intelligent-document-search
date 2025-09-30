@@ -35,16 +35,14 @@ class FileUpload:
         if self.file_size < 0:
             raise BusinessRuleViolationError("Tamanho do arquivo não pode ser negativo")
 
-        # Validar tamanho máximo (5GB - limite S3)
-        max_size = 5 * 1024 * 1024 * 1024  # 5GB
+        max_size = 5 * 1024 * 1024 * 1024
         if self.file_size > max_size:
             raise BusinessRuleViolationError("Arquivo não pode ser maior que 5GB")
 
-        # Validar tipos de conteúdo permitidos
         allowed_types = [
             "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-            "application/msword",  # .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
         ]
 
         if self.content_type and self.content_type not in allowed_types:

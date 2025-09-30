@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from domain.entities.message import Message, MessageRole, MessageType, DocumentReference
 
-
 class TestDocumentReference:
     
     def test_create_document_reference_minimal(self):
@@ -37,7 +36,6 @@ class TestDocumentReference:
         assert ref.page == 5
         assert ref.similarity_score == 0.85
         assert ref.excerpt == "Test excerpt"
-
 
 class TestMessage:
     
@@ -94,7 +92,6 @@ class TestMessage:
         assert message.created_at is not None
     
     def test_has_references_property(self):
-        # Message without references
         message = Message(
             id=uuid4(),
             session_id=uuid4(),
@@ -105,7 +102,6 @@ class TestMessage:
         assert message.has_references is False
         assert message.reference_count == 0
         
-        # Add reference
         ref = DocumentReference(
             document_id=uuid4(),
             chunk_id=uuid4(),
@@ -163,7 +159,7 @@ class TestMessage:
         ref3 = DocumentReference(
             document_id=uuid4(),
             chunk_id=uuid4(),
-            source="doc1.pdf"  # Same source as ref1
+            source="doc1.pdf"
         )
         
         message.add_document_reference(ref1)
@@ -182,7 +178,6 @@ class TestMessage:
         assert ref2 in doc2_refs
     
     def test_message_types_enum(self):
-        # Test all message types
         text_msg = Message(
             id=uuid4(),
             session_id=uuid4(),
@@ -212,7 +207,6 @@ class TestMessage:
         assert error_msg.message_type == MessageType.ERROR
     
     def test_message_roles_enum(self):
-        # Test all message roles
         user_msg = Message(
             id=uuid4(),
             session_id=uuid4(),

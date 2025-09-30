@@ -19,7 +19,6 @@ class DocumentMetadata:
     custom_fields: Dict = field(default_factory=dict)
 
     def __hash__(self):
-        # Custom hash implementation that excludes mutable custom_fields
         return hash(
             (
                 self.source,

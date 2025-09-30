@@ -16,7 +16,7 @@ class Usuario:
     prefeitura_id: Optional[PrefeituraId]
     nome: str
     email: str
-    senha_hash: Optional[str] = None  # NULL até implementar autenticação
+    senha_hash: Optional[str] = None
     ativo: bool = True
     criado_em: datetime = field(default_factory=datetime.utcnow)
     atualizado_em: datetime = field(default_factory=datetime.utcnow)
@@ -70,7 +70,6 @@ class Usuario:
     @classmethod
     def create_anonimo(cls, nome: str = "Usuário Anônimo") -> "Usuario":
         """Cria usuário anônimo (sem prefeitura)"""
-        # Email temporário único para usuários anônimos
         email_anonimo = f"anonimo+{UsuarioId.generate()}@temp.local"
         return cls.create(
             nome=nome, email=email_anonimo, prefeitura_id=None, ativo=True

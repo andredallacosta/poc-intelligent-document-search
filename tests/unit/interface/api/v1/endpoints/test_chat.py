@@ -14,7 +14,6 @@ from domain.exceptions.chat_exceptions import (
     InvalidMessageError
 )
 
-
 class TestChatEndpoints:
     
     @pytest.fixture
@@ -63,7 +62,6 @@ class TestChatEndpoints:
         assert response.sources[0].source == "geography.pdf"
         assert response.processing_time == 1.2
         
-        # Verify use case was called with correct DTO
         mock_chat_use_case.execute.assert_called_once()
         call_args = mock_chat_use_case.execute.call_args[0][0]
         assert isinstance(call_args, ChatRequestDTO)
@@ -86,7 +84,6 @@ class TestChatEndpoints:
         
         assert isinstance(response, ChatResponse)
         
-        # Verify use case was called with session_id
         call_args = mock_chat_use_case.execute.call_args[0][0]
         assert call_args.session_id == session_id
         assert call_args.metadata == {"context": "follow-up"}
@@ -154,7 +151,6 @@ class TestChatEndpoints:
         assert response == {"status": "healthy", "service": "chat"}
     
     def test_chat_request_to_dto_conversion(self, sample_chat_request):
-        # Test the conversion logic used in the endpoint
         chat_request_dto = ChatRequestDTO(
             message=sample_chat_request.message,
             session_id=sample_chat_request.session_id,
@@ -166,7 +162,6 @@ class TestChatEndpoints:
         assert chat_request_dto.metadata == sample_chat_request.metadata
     
     def test_chat_response_dto_to_schema_conversion(self, sample_chat_response_dto):
-        # Test the conversion logic used in the endpoint
         response = ChatResponse(
             response=sample_chat_response_dto.response,
             session_id=sample_chat_response_dto.session_id,
@@ -205,14 +200,12 @@ class TestChatEndpoints:
     
     @pytest.mark.asyncio
     async def test_get_chat_use_case_dependency_injection(self):
-        # Test the dependency injection function
         from unittest.mock import patch, AsyncMock
         
         with patch('interface.dependencies.container.get_chat_use_case') as mock_container_get_use_case:
             mock_use_case = Mock(spec=ChatWithDocumentsUseCase)
             mock_container_get_use_case.return_value = mock_use_case
             
-            # Mock the dependencies that get_chat_use_case needs
             with patch('interface.dependencies.container.get_chat_service') as mock_get_chat_service, \
                  patch('interface.dependencies.container.get_search_service') as mock_get_search_service, \
                  patch('interface.dependencies.container.get_llm_service') as mock_get_llm_service:

@@ -91,14 +91,14 @@ class OpenAIClient:
             raise LLMError(f"Failed to generate streaming completion: {e}")
 
     def estimate_tokens(self, text: str) -> int:
-        return len(text.split()) * 1.3  # Rough estimation
+        return len(text.split()) * 1.3
 
     def calculate_embedding_cost(self, token_count: int) -> float:
-        return (token_count / 1_000_000) * 0.02  # $0.02 per 1M tokens
+        return (token_count / 1_000_000) * 0.02
 
     def calculate_completion_cost(
         self, prompt_tokens: int, completion_tokens: int
     ) -> float:
-        prompt_cost = (prompt_tokens / 1_000_000) * 0.00015  # GPT-4o-mini input
-        completion_cost = (completion_tokens / 1_000_000) * 0.0006  # GPT-4o-mini output
+        prompt_cost = (prompt_tokens / 1_000_000) * 0.00015
+        completion_cost = (completion_tokens / 1_000_000) * 0.0006
         return prompt_cost + completion_cost

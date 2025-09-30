@@ -1,13 +1,10 @@
 from functools import lru_cache
 
-# FastAPI Dependencies
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.interfaces.llm_service import LLMServiceInterface
 from application.use_cases.chat_with_documents import ChatWithDocumentsUseCase
-
-# === NOVOS IMPORTS PARA ADR-002 ===
 from application.use_cases.create_presigned_upload import CreatePresignedUploadUseCase
 from application.use_cases.get_document_status import (
     GetDocumentStatusUseCase,
@@ -17,8 +14,6 @@ from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
 from domain.services.chat_service import ChatService
-
-# === NOVO SERVIÇO DE DOMÍNIO ===
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
@@ -28,14 +23,8 @@ from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
 from infrastructure.external.openai_client import OpenAIClient
 from infrastructure.external.redis_client import RedisClient
-
-# === NOVO S3 SERVICE ===
 from infrastructure.external.s3_service import S3Service
-
-# === PROCESSADOR DE TEXTO ===
 from infrastructure.processors.text_chunker import TextChunker
-
-# === NOVOS REPOSITÓRIOS ===
 from infrastructure.repositories.postgres_document_processing_job_repository import (
     PostgresDocumentProcessingJobRepository,
 )
@@ -80,7 +69,6 @@ class Container:
     @lru_cache(maxsize=1)
     def get_redis_client(self) -> RedisClient:
         if "redis_client" not in self._instances:
-            # Use REDIS_URL if available, otherwise use individual settings
             redis_url = (
                 settings.get_redis_url()
                 if hasattr(settings, "get_redis_url")
@@ -137,8 +125,6 @@ class Container:
             )
         return self._instances["chat_service"]
 
-    # === NOVOS MÉTODOS PARA ADR-002 ===
-
     @lru_cache(maxsize=1)
     def get_s3_service(self) -> S3Service:
         """Retorna S3Service configurado"""
@@ -169,19 +155,13 @@ class Container:
     @lru_cache(maxsize=1)
     def get_document_service(self) -> DocumentService:
         """Retorna DocumentService"""
-        # NOTA: DocumentService será injetado via dependency nas funções abaixo
-        # Por enquanto, retornar None (será implementado quando necessário)
         return None
 
     @lru_cache(maxsize=1)
     def get_document_processor(self) -> DocumentProcessor:
         """Retorna DocumentProcessor configurado"""
         if "document_processor" not in self._instances:
-            # NOTA: Algumas dependências serão injetadas via dependency functions
-            # Por simplicidade no MVP, vamos criar uma instância básica
-            self._instances["document_processor"] = (
-                None  # Será implementado via dependencies
-            )
+            self._instances["document_processor"] = None
         return self._instances["document_processor"]
 
     async def close_connections(self):
@@ -189,15 +169,10 @@ class Container:
         if "redis_client" in self._instances:
             await self._instances["redis_client"].close()
 
-        # Fecha conexão PostgreSQL
         await db_connection.close()
 
 
-# Global container instance
 container = Container()
-
-
-# PostgreSQL Repository Dependencies
 
 
 async def get_postgres_vector_repository(
@@ -267,7 +242,9 @@ async def get_search_service(
     threshold_service: ThresholdService = Depends(get_threshold_service),
 ) -> SearchService:
     """Dependency para SearchService com PostgreSQL"""
-    return SearchService(vector_repository=vector_repo, threshold_service=threshold_service)
+    return SearchService(
+        vector_repository=vector_repo, threshold_service=threshold_service
+    )
 
 
 async def get_chat_use_case(
@@ -285,11 +262,9 @@ async def get_chat_use_case(
 
 async def create_chat_use_case() -> ChatWithDocumentsUseCase:
     """Cria ChatWithDocumentsUseCase sem Depends (para chamada direta)"""
-    # Get services directly from container
     chat_service = container.get_chat_service()
     llm_service = container.get_llm_service()
 
-    # Create search service with database session
     from infrastructure.database.connection import get_db_session
 
     async for session in get_db_session():
@@ -301,9 +276,6 @@ async def create_chat_use_case() -> ChatWithDocumentsUseCase:
             search_service=search_service,
             llm_service=llm_service,
         )
-
-
-# === NOVAS DEPENDENCIES PARA ADR-002 ===
 
 
 async def get_postgres_file_upload_repository(
@@ -364,9 +336,6 @@ async def get_document_processor(
         s3_service=s3_service,
         document_repository=document_repo,
     )
-
-
-# === USE CASES DEPENDENCIES ===
 
 
 async def get_create_presigned_upload_use_case(

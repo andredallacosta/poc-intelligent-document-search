@@ -22,14 +22,12 @@ class ContentHash:
         if not self.value or len(self.value.strip()) == 0:
             raise BusinessRuleViolationError("Hash value é obrigatório")
 
-        # Validar formato do hash
         if self.algorithm == "sha256" and len(self.value) != 64:
             raise BusinessRuleViolationError("Hash SHA256 deve ter 64 caracteres")
 
         if self.algorithm == "md5" and len(self.value) != 32:
             raise BusinessRuleViolationError("Hash MD5 deve ter 32 caracteres")
 
-        # Validar se é hexadecimal
         if not re.match(r"^[a-fA-F0-9]+$", self.value):
             raise BusinessRuleViolationError(
                 "Hash deve conter apenas caracteres hexadecimais"
@@ -52,10 +50,8 @@ class ContentHash:
     @staticmethod
     def _normalize_text(text: str) -> str:
         """Normaliza texto para cálculo de hash consistente"""
-        # Remove formatação, espaços extras, quebras de linha
         normalized = re.sub(r"\s+", " ", text.lower().strip())
 
-        # Remove caracteres especiais de formatação
         normalized = re.sub(r"[^\w\s]", "", normalized)
 
         return normalized

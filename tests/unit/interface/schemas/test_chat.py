@@ -4,7 +4,6 @@ from uuid import uuid4
 
 from interface.schemas.chat import ChatRequest, DocumentSource, ChatResponse, ErrorResponse
 
-
 class TestChatRequest:
     
     def test_create_chat_request_minimal(self):
@@ -35,12 +34,11 @@ class TestChatRequest:
         assert "at least 1 character" in str(exc_info.value)
     
     def test_chat_request_whitespace_only_message_succeeds(self):
-        # Pydantic allows whitespace-only strings, so this should succeed
         request = ChatRequest(message="   ")
         assert request.message == "   "
     
     def test_chat_request_too_long_message_fails(self):
-        long_message = "x" * 2001  # Exceeds max_length=2000
+        long_message = "x" * 2001
         
         with pytest.raises(ValidationError) as exc_info:
             ChatRequest(message=long_message)
@@ -48,7 +46,7 @@ class TestChatRequest:
         assert "at most 2000 characters" in str(exc_info.value)
     
     def test_chat_request_max_length_message_succeeds(self):
-        max_message = "x" * 2000  # Exactly max_length=2000
+        max_message = "x" * 2000
         
         request = ChatRequest(message=max_message)
         assert len(request.message) == 2000
@@ -66,7 +64,6 @@ class TestChatRequest:
         assert json_data["message"] == "Test message"
         assert json_data["session_id"] == session_id
         assert json_data["metadata"] == {"key": "value"}
-
 
 class TestDocumentSource:
     
@@ -111,7 +108,6 @@ class TestDocumentSource:
         doc_id = uuid4()
         chunk_id = uuid4()
         
-        # Valid similarity scores
         source1 = DocumentSource(
             document_id=doc_id,
             chunk_id=chunk_id,
@@ -128,13 +124,12 @@ class TestDocumentSource:
         )
         assert source2.similarity_score == 1.0
         
-        # Invalid similarity scores
         with pytest.raises(ValidationError):
             DocumentSource(
                 document_id=doc_id,
                 chunk_id=chunk_id,
                 source="test.pdf",
-                similarity_score=-0.1  # Below 0.0
+                similarity_score=-0.1
             )
         
         with pytest.raises(ValidationError):
@@ -142,9 +137,8 @@ class TestDocumentSource:
                 document_id=doc_id,
                 chunk_id=chunk_id,
                 source="test.pdf",
-                similarity_score=1.1  # Above 1.0
+                similarity_score=1.1
             )
-
 
 class TestChatResponse:
     
@@ -204,7 +198,7 @@ class TestChatResponse:
             ChatResponse(
                 response="Test response",
                 session_id=session_id,
-                processing_time=-1.0  # Negative processing time
+                processing_time=-1.0
             )
         
         assert "greater than or equal to 0" in str(exc_info.value)
@@ -245,7 +239,6 @@ class TestChatResponse:
         assert len(json_data["sources"]) == 1
         assert json_data["processing_time"] == 1.0
 
-
 class TestErrorResponse:
     
     def test_create_error_response_minimal(self):
@@ -279,17 +272,14 @@ class TestErrorResponse:
         assert json_data["detail"] == "Invalid input provided"
         assert json_data["error_code"] == "VALIDATION_ERROR"
 
-
 class TestSchemaIntegration:
     
     def test_chat_request_to_response_flow(self):
-        # Create a request
         request = ChatRequest(
             message="What is the capital of France?",
             metadata={"user_id": "123"}
         )
         
-        # Simulate processing and create response
         session_id = uuid4()
         doc_id = uuid4()
         chunk_id = uuid4()
@@ -312,7 +302,6 @@ class TestSchemaIntegration:
             token_usage={"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
         )
         
-        # Verify the flow works
         assert request.message == "What is the capital of France?"
         assert response.response == "The capital of France is Paris."
         assert len(response.sources) == 1
@@ -323,19 +312,16 @@ class TestSchemaIntegration:
         doc_id = uuid4()
         chunk_id = uuid4()
         
-        # Test all schemas can be serialized to JSON
         request = ChatRequest(message="Test")
         source = DocumentSource(document_id=doc_id, chunk_id=chunk_id, source="test.pdf")
         response = ChatResponse(response="Test", session_id=session_id, processing_time=1.0)
         error = ErrorResponse(error="Test error")
         
-        # Should not raise exceptions
         request_json = request.model_dump_json()
         source_json = source.model_dump_json()
         response_json = response.model_dump_json()
         error_json = error.model_dump_json()
         
-        # Should be valid JSON strings
         assert isinstance(request_json, str)
         assert isinstance(source_json, str)
         assert isinstance(response_json, str)

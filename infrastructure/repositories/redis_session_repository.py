@@ -47,7 +47,7 @@ class RedisSessionRepository(SessionRepository):
 
             session = ChatSession(
                 id=UUID(session_data["id"]),
-                messages=[],  # Messages loaded separately
+                messages=[],
                 created_at=datetime.fromisoformat(session_data["created_at"]),
                 updated_at=datetime.fromisoformat(session_data["updated_at"]),
                 is_active=session_data["is_active"],
@@ -140,7 +140,6 @@ class RedisMessageRepository(MessageRepository):
                 "created_at": message.created_at.isoformat(),
             }
 
-            # Store message in session's message list
             session_key = f"{self._message_prefix}{message.session_id}"
             await self._redis_client.list_push(session_key, message_data)
             await self._redis_client.expire(
@@ -152,8 +151,6 @@ class RedisMessageRepository(MessageRepository):
             raise SessionNotFoundError(f"Failed to save message: {e}")
 
     async def find_message_by_id(self, message_id: UUID) -> Optional[Message]:
-        # This would require scanning all sessions - not efficient for Redis
-        # In a real implementation, we'd use a separate message index
         return None
 
     async def find_messages_by_session_id(
@@ -162,16 +159,13 @@ class RedisMessageRepository(MessageRepository):
         try:
             session_key = f"{self._message_prefix}{session_id}"
 
-            # Get messages from Redis list (most recent first)
             end_index = offset + limit - 1 if limit else -1
             message_data_list = await self._redis_client.list_get_range(
                 session_key, offset, end_index
             )
 
             messages = []
-            for message_data in reversed(
-                message_data_list
-            ):  # Reverse to get chronological order
+            for message_data in reversed(message_data_list):
                 document_references = []
                 for ref_data in message_data.get("document_references", []):
                     ref = DocumentReference(

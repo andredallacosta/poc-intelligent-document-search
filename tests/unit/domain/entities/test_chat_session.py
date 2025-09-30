@@ -5,7 +5,6 @@ from uuid import uuid4
 from domain.entities.chat_session import ChatSession
 from domain.entities.message import Message, MessageRole
 
-
 class TestChatSession:
     
     def test_create_empty_chat_session(self):
@@ -56,14 +55,12 @@ class TestChatSession:
         assert session.message_count == 3
         assert session.last_message == messages[-1]
         
-        # All messages should have the session ID updated
         for message in session.messages:
             assert message.session_id == session.id
     
     def test_get_conversation_history_no_limit(self):
         session = ChatSession(id=uuid4())
         
-        # Add messages with different timestamps
         for i in range(5):
             message = Message(
                 id=uuid4(),
@@ -78,14 +75,12 @@ class TestChatSession:
         history = session.get_conversation_history()
         
         assert len(history) == 5
-        # Should be sorted by created_at
         for i in range(1, len(history)):
             assert history[i].created_at >= history[i-1].created_at
     
     def test_get_conversation_history_with_limit(self):
         session = ChatSession(id=uuid4())
         
-        # Add 5 messages
         for i in range(5):
             message = Message(
                 id=uuid4(),
@@ -100,7 +95,6 @@ class TestChatSession:
         history = session.get_conversation_history(limit=3)
         
         assert len(history) == 3
-        # Should return the last 3 messages
         assert history[0].content == "Message 2"
         assert history[1].content == "Message 3"
         assert history[2].content == "Message 4"

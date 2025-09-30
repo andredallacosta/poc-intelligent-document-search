@@ -3,7 +3,6 @@ from datetime import datetime
 
 from domain.value_objects.document_metadata import DocumentMetadata
 
-
 class TestDocumentMetadata:
     
     def test_create_minimal_metadata(self):
@@ -56,7 +55,6 @@ class TestDocumentMetadata:
             source="test.pdf",
             file_size=1024,
             file_type="pdf"
-            # custom_fields not provided, should use default_factory
         )
         
         assert metadata.custom_fields == {}
@@ -65,7 +63,7 @@ class TestDocumentMetadata:
         pdf_metadata = DocumentMetadata(
             source="test.pdf",
             file_size=1024,
-            file_type="PDF"  # Test case insensitive
+            file_type="PDF"
         )
         
         non_pdf_metadata = DocumentMetadata(
@@ -81,7 +79,7 @@ class TestDocumentMetadata:
         docx_metadata = DocumentMetadata(
             source="test.docx",
             file_size=1024,
-            file_type="DOCX"  # Test case insensitive
+            file_type="DOCX"
         )
         
         doc_metadata = DocumentMetadata(
@@ -104,7 +102,7 @@ class TestDocumentMetadata:
         html_metadata = DocumentMetadata(
             source="webpage.html",
             file_size=1024,
-            file_type="HTML"  # Test case insensitive
+            file_type="HTML"
         )
         
         pdf_metadata = DocumentMetadata(
@@ -117,19 +115,17 @@ class TestDocumentMetadata:
         assert pdf_metadata.is_web_content is False
     
     def test_size_mb_property(self):
-        # 1 MB = 1024 * 1024 bytes
         metadata = DocumentMetadata(
             source="test.pdf",
-            file_size=1024 * 1024,  # 1 MB
+            file_size=1024 * 1024,
             file_type="pdf"
         )
         
         assert metadata.size_mb == 1.0
         
-        # Test fractional MB
         small_metadata = DocumentMetadata(
             source="small.txt",
-            file_size=512 * 1024,  # 0.5 MB
+            file_size=512 * 1024,
             file_type="txt"
         )
         
@@ -167,13 +163,10 @@ class TestDocumentMetadata:
         
         updated = original.with_custom_field("new_field", "new_value")
         
-        # Original should be unchanged (immutable)
         assert original.custom_fields == {"existing": "value"}
         
-        # Updated should have both fields
         assert updated.custom_fields == {"existing": "value", "new_field": "new_value"}
         
-        # Other fields should be the same
         assert updated.source == original.source
         assert updated.file_size == original.file_size
         assert updated.file_type == original.file_type
@@ -188,10 +181,8 @@ class TestDocumentMetadata:
         
         updated = original.with_custom_field("field", "new_value")
         
-        # Original should be unchanged
         assert original.custom_fields == {"field": "old_value"}
         
-        # Updated should have new value
         assert updated.custom_fields == {"field": "new_value"}
     
     def test_metadata_is_frozen(self):
@@ -201,7 +192,6 @@ class TestDocumentMetadata:
             file_type="pdf"
         )
         
-        # Should not be able to modify frozen dataclass
         with pytest.raises(AttributeError):
             metadata.source = "new_source.pdf"
     
@@ -243,10 +233,7 @@ class TestDocumentMetadata:
             file_type="pdf"
         )
         
-        # Should be hashable and equal objects should have same hash
-        # Note: custom_fields dict makes the object unhashable, so we test without it
         assert hash(metadata1) == hash(metadata2)
         
-        # Should be usable in sets/dicts
         metadata_set = {metadata1, metadata2}
-        assert len(metadata_set) == 1  # Same metadata, so only one in set
+        assert len(metadata_set) == 1

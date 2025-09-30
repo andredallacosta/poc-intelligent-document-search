@@ -12,7 +12,6 @@ from domain.entities.message import Message, MessageRole
 from domain.value_objects.embedding import Embedding
 from domain.exceptions.chat_exceptions import ChatError
 
-
 class TestChatWithDocumentsUseCase:
     
     @pytest.fixture
@@ -109,7 +108,6 @@ class TestChatWithDocumentsUseCase:
         mock_llm_response,
         sample_embedding
     ):
-        # Arrange
         mock_chat_service.create_session = AsyncMock(return_value=mock_session)
         mock_chat_service.add_user_message = AsyncMock(return_value=mock_user_message)
         mock_chat_service.add_assistant_message = AsyncMock(return_value=mock_assistant_message)
@@ -121,10 +119,8 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content = AsyncMock(return_value=mock_search_results)
         mock_search_service.convert_results_to_references = Mock(return_value=mock_document_references)
         
-        # Act
         response = await use_case.execute(chat_request_new_session)
         
-        # Assert
         assert isinstance(response, ChatResponseDTO)
         assert response.response == mock_llm_response["content"]
         assert response.session_id == mock_session.id
@@ -132,7 +128,6 @@ class TestChatWithDocumentsUseCase:
         assert response.processing_time > 0
         assert response.token_usage == mock_llm_response["usage"]
         
-        # Verify service calls
         mock_chat_service.create_session.assert_called_once()
         mock_chat_service.add_user_message.assert_called_once()
         mock_chat_service.add_assistant_message.assert_called_once()
@@ -155,7 +150,6 @@ class TestChatWithDocumentsUseCase:
         mock_document_references,
         mock_llm_response
     ):
-        # Arrange
         mock_chat_service.get_session = AsyncMock(return_value=mock_session)
         mock_chat_service.add_user_message = AsyncMock(return_value=mock_user_message)
         mock_chat_service.add_assistant_message = AsyncMock(return_value=mock_assistant_message)
@@ -167,14 +161,11 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content = AsyncMock(return_value=mock_search_results)
         mock_search_service.convert_results_to_references = Mock(return_value=mock_document_references)
         
-        # Act
         response = await use_case.execute(chat_request_existing_session)
         
-        # Assert
         assert isinstance(response, ChatResponseDTO)
         assert response.session_id == mock_session.id
         
-        # Verify existing session was retrieved, not created
         mock_chat_service.get_session.assert_called_once_with(chat_request_existing_session.session_id)
         mock_chat_service.create_session.assert_not_called()
     
@@ -191,7 +182,6 @@ class TestChatWithDocumentsUseCase:
         mock_assistant_message,
         mock_llm_response
     ):
-        # Arrange
         mock_chat_service.create_session = AsyncMock(return_value=mock_session)
         mock_chat_service.add_user_message = AsyncMock(return_value=mock_user_message)
         mock_chat_service.add_assistant_message = AsyncMock(return_value=mock_assistant_message)
@@ -203,10 +193,8 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content = AsyncMock(return_value=[])
         mock_search_service.convert_results_to_references = Mock(return_value=[])
         
-        # Act
         response = await use_case.execute(chat_request_new_session)
         
-        # Assert
         assert isinstance(response, ChatResponseDTO)
         assert len(response.sources) == 0
         assert response.metadata["search_results_count"] == 0
@@ -226,7 +214,6 @@ class TestChatWithDocumentsUseCase:
         mock_document_references,
         mock_llm_response
     ):
-        # Arrange
         conversation_history = [mock_user_message]
         
         mock_chat_service.create_session = AsyncMock(return_value=mock_session)
@@ -240,15 +227,12 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content = AsyncMock(return_value=mock_search_results)
         mock_search_service.convert_results_to_references = Mock(return_value=mock_document_references)
         
-        # Act
         await use_case.execute(chat_request_new_session)
         
-        # Assert
-        # Verify LLM was called with properly structured messages
         call_args = mock_llm_service.generate_response.call_args
         messages = call_args[1]["messages"]
         
-        assert len(messages) >= 2  # At least system message + user message
+        assert len(messages) >= 2
         assert messages[0]["role"] == "system"
         assert "documentos relevantes" in messages[0]["content"].lower() or "nenhum documento" in messages[0]["content"].lower()
         assert messages[-1]["role"] == "user"
@@ -263,10 +247,8 @@ class TestChatWithDocumentsUseCase:
         mock_search_service,
         mock_llm_service
     ):
-        # Arrange
         mock_chat_service.create_session = AsyncMock(side_effect=Exception("Database error"))
         
-        # Act & Assert
         with pytest.raises(ChatError, match="Failed to process chat request"):
             await use_case.execute(chat_request_new_session)
     
@@ -283,7 +265,6 @@ class TestChatWithDocumentsUseCase:
         mock_assistant_message,
         mock_llm_response
     ):
-        # Arrange
         mock_chat_service.create_session = AsyncMock(return_value=mock_session)
         mock_chat_service.add_user_message = AsyncMock(return_value=mock_user_message)
         mock_chat_service.add_assistant_message = AsyncMock(return_value=mock_assistant_message)
@@ -295,11 +276,8 @@ class TestChatWithDocumentsUseCase:
         mock_search_service.search_similar_content = AsyncMock(return_value=[])
         mock_search_service.convert_results_to_references = Mock(return_value=[])
         
-        # Act
         await use_case.execute(chat_request_new_session)
         
-        # Assert
-        # Verify search was called with correct parameters
         mock_search_service.search_similar_content.assert_called_once()
         call_args = mock_search_service.search_similar_content.call_args
         

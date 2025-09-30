@@ -39,10 +39,8 @@ class CreatePresignedUploadUseCase:
             BusinessRuleViolationError: Se dados inválidos ou erro S3
         """
         try:
-            # Validar dados de entrada
             self._validate_request(request)
 
-            # Criar FileUpload
             document_id = uuid4()
             file_upload = FileUpload.create(
                 filename=request.filename,
@@ -51,26 +49,22 @@ class CreatePresignedUploadUseCase:
                 document_id=document_id,
             )
 
-            # Gerar chave S3 temporária
             s3_key = S3Key.create_temp_key(
                 document_id=str(document_id),
                 filename=request.filename,
                 bucket=self.s3_service.bucket,
             )
 
-            # Gerar URL presigned
             upload_url, expires_at, upload_fields = (
                 self.s3_service.generate_presigned_upload_url(
                     s3_key=s3_key,
                     content_type=request.content_type,
-                    expires_in=3600,  # 1 hora
+                    expires_in=3600,
                 )
             )
 
-            # Atualizar FileUpload com dados S3
             file_upload.set_s3_info(s3_key, upload_url, expires_at)
 
-            # Salvar no repositório
             await self.file_upload_repository.save(file_upload)
 
             logger.info(f"Upload presigned criado: {file_upload.id} -> {s3_key.key}")
@@ -100,14 +94,13 @@ class CreatePresignedUploadUseCase:
                 "Tamanho do arquivo deve ser maior que zero"
             )
 
-        if request.file_size > 5 * 1024 * 1024 * 1024:  # 5GB
+        if request.file_size > 5 * 1024 * 1024 * 1024:
             raise BusinessRuleViolationError("Arquivo não pode ser maior que 5GB")
 
-        # Validar tipos de arquivo permitidos
         allowed_types = [
             "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
-            "application/msword",  # .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
         ]
 
         if request.content_type not in allowed_types:
@@ -116,7 +109,6 @@ class CreatePresignedUploadUseCase:
                 f"Tipos permitidos: PDF, DOC, DOCX"
             )
 
-        # Validar extensão do arquivo
         allowed_extensions = [".pdf", ".doc", ".docx"]
         file_ext = (
             "." + request.filename.split(".")[-1].lower()
@@ -130,19 +122,16 @@ class CreatePresignedUploadUseCase:
                 f"Extensões permitidas: {', '.join(allowed_extensions)}"
             )
 
-        # Validar título se fornecido
         if request.title and len(request.title) > 255:
             raise BusinessRuleViolationError(
                 "Título não pode ter mais de 255 caracteres"
             )
 
-        # Validar descrição se fornecida
         if request.description and len(request.description) > 1000:
             raise BusinessRuleViolationError(
                 "Descrição não pode ter mais de 1000 caracteres"
             )
 
-        # Validar tags se fornecidas
         if request.tags:
             if len(request.tags) > 10:
                 raise BusinessRuleViolationError("Máximo de 10 tags permitidas")

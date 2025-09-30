@@ -10,19 +10,16 @@ from infrastructure.config.settings import settings
 from interface.api.v1.router import api_router
 from interface.dependencies.container import container
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-# Reduce SQLAlchemy logging verbosity
 sqlalchemy_level = getattr(logging, settings.sqlalchemy_log_level)
 logging.getLogger("sqlalchemy.engine").setLevel(sqlalchemy_level)
 logging.getLogger("sqlalchemy.pool").setLevel(sqlalchemy_level)
 logging.getLogger("sqlalchemy.dialects").setLevel(sqlalchemy_level)
 
-# Reduce external libraries logging verbosity
 external_libs_level = getattr(logging, settings.external_libs_log_level)
 logging.getLogger("openai._base_client").setLevel(external_libs_level)
 logging.getLogger("httpcore.connection").setLevel(external_libs_level)
@@ -35,13 +32,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("Starting up Intelligent Document Search API v2.0")
 
-    # Create storage directories
     settings.create_directories()
 
-    # Test connections
     try:
         redis_client = container.get_redis_client()
         if not await redis_client.ping():
@@ -52,12 +46,10 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Redis connection error: {e}")
 
     try:
-        # Initialize PostgreSQL connection
         from infrastructure.database.connection import db_connection
 
         db_connection.initialize()
 
-        # Test connection with a simple query
         from sqlalchemy import text
 
         async for session in db_connection.get_session():
@@ -66,7 +58,6 @@ async def lifespan(app: FastAPI):
                 logger.info("PostgreSQL connection successful")
             break
 
-        # PostgreSQL connection successful
         logger.info("PostgreSQL repositories initialized successfully")
     except Exception as e:
         logger.error(f"Database connection error: {e}")
@@ -74,7 +65,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     logger.info("Shutting down...")
     try:
         from infrastructure.database.connection import db_connection
@@ -86,7 +76,6 @@ async def lifespan(app: FastAPI):
     await container.close_connections()
 
 
-# Create FastAPI app
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
@@ -97,7 +86,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -107,7 +95,6 @@ app.add_middleware(
 )
 
 
-# Add request timing middleware
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
@@ -117,11 +104,9 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 
-# Include API router
 app.include_router(api_router, prefix=settings.api_prefix)
 
 
-# Root endpoints
 @app.get("/")
 async def root():
     return {
@@ -136,16 +121,13 @@ async def root():
 @app.get("/health")
 async def health_check():
     try:
-        # Test Redis connection
         redis_client = container.get_redis_client()
         redis_healthy = await redis_client.ping()
 
-        # Test database connections
         postgres_healthy = False
         embedding_count = 0
         database_type = "unknown"
 
-        # Try PostgreSQL first
         try:
             from sqlalchemy import text
 
@@ -157,11 +139,9 @@ async def health_check():
                 database_type = "postgresql"
                 break
 
-            # Count PostgreSQL embeddings if available
             if postgres_healthy:
                 try:
-                    # TODO: Implementar count no PostgresVectorRepository
-                    embedding_count = 0  # Placeholder
+                    embedding_count = 0
                 except:
                     pass
 
@@ -169,7 +149,6 @@ async def health_check():
             logger.warning(f"PostgreSQL connection failed: {pg_error}")
             database_type = "none"
 
-        # Determine overall system health
         system_healthy = redis_healthy and postgres_healthy
 
         return {
@@ -215,7 +194,6 @@ async def app_info():
     }
 
 
-# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global exception: {exc}")

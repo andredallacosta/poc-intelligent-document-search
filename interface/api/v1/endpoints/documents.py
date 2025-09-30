@@ -1,7 +1,9 @@
 import logging
 from typing import List
 from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 from application.dto.document_dto import (
     PresignedUploadRequestDTO,
     ProcessDocumentRequestDTO,
@@ -15,6 +17,12 @@ from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
 from domain.exceptions.business_exceptions import BusinessRuleViolationError
+from interface.dependencies.container import (
+    get_create_presigned_upload_use_case,
+    get_document_status_use_case,
+    get_job_status_use_case,
+    get_process_document_use_case,
+)
 from interface.schemas.documents import (
     DocumentError,
     DocumentHealth,
@@ -27,12 +35,6 @@ from interface.schemas.documents import (
     PresignedUploadResponse,
     ProcessDocumentRequest,
     ProcessDocumentResponse,
-)
-from interface.dependencies.container import (
-    get_create_presigned_upload_use_case,
-    get_document_status_use_case,
-    get_job_status_use_case,
-    get_process_document_use_case,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,7 +60,6 @@ async def create_presigned_upload(
 ):
     """Cria URL presigned para upload direto ao S3"""
     try:
-        # Converter schema para DTO
         dto = PresignedUploadRequestDTO(
             filename=request.filename,
             file_size=request.file_size,
@@ -68,10 +69,8 @@ async def create_presigned_upload(
             tags=request.tags or [],
         )
 
-        # Executar use case
         result = await use_case.execute(dto)
 
-        # Converter DTO para schema de resposta
         return PresignedUploadResponse(
             upload_url=result.upload_url,
             document_id=result.document_id,
@@ -107,16 +106,13 @@ async def process_document(
 ):
     """Processa documento após upload"""
     try:
-        # Converter schema para DTO
         dto = ProcessDocumentRequestDTO(
             upload_id=request.upload_id,
             file_hash=request.file_hash,
         )
 
-        # Executar use case
         result = await use_case.execute(dto)
 
-        # Converter DTO para schema de resposta
         return ProcessDocumentResponse(
             job_id=result.job_id,
             status=result.status.value,
@@ -131,9 +127,6 @@ async def process_document(
     except Exception as e:
         logger.error(f"Erro interno no processamento: {e}")
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
-
-
-# === STATUS ENDPOINTS ===
 
 
 @router.get(
@@ -152,10 +145,8 @@ async def get_document_status(
 ):
     """Obtém status de processamento do documento"""
     try:
-        # Executar use case
         result = await use_case.execute(document_id)
 
-        # Converter DTO para schema de resposta
         return DocumentStatus(
             document_id=result.document_id,
             job_id=result.job_id,
@@ -197,10 +188,8 @@ async def get_job_status(
 ):
     """Obtém status de job de processamento"""
     try:
-        # Executar use case
         result = await use_case.execute(job_id)
 
-        # Converter DTO para schema de resposta
         return DocumentStatus(
             document_id=result.document_id,
             job_id=result.job_id,
@@ -226,9 +215,6 @@ async def get_job_status(
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
 
-# === SEARCH ENDPOINTS ===
-
-
 @router.post(
     "/search",
     response_model=DocumentSearchResponse,
@@ -241,16 +227,11 @@ async def get_job_status(
 )
 async def search_documents(request: DocumentSearchRequest):
     """Busca semântica em documentos"""
-    # NOTA: Implementação será adicionada posteriormente
-    # Por enquanto, retornar resposta vazia
     return DocumentSearchResponse(
         results=[],
         query_time=0.0,
         total_chunks_searched=0,
     )
-
-
-# === MANAGEMENT ENDPOINTS ===
 
 
 @router.get(
@@ -267,7 +248,6 @@ async def list_documents(
     offset: int = Query(0, ge=0, description="Offset para paginação"),
 ):
     """Lista documentos com filtros"""
-    # NOTA: Implementação será adicionada posteriormente
     return DocumentListResponse(
         documents=[],
         total=0,
@@ -286,11 +266,7 @@ async def list_documents(
 )
 async def get_document(document_id: UUID):
     """Obtém documento específico"""
-    # NOTA: Implementação será adicionada posteriormente
     raise HTTPException(status_code=404, detail="Documento não encontrado")
-
-
-# === STATS ENDPOINTS ===
 
 
 @router.get(
@@ -301,7 +277,6 @@ async def get_document(document_id: UUID):
 )
 async def get_document_stats():
     """Obtém estatísticas de documentos"""
-    # NOTA: Implementação será adicionada posteriormente
     return DocumentStats(
         total_documents=0,
         by_status={},
@@ -322,7 +297,6 @@ async def get_document_stats():
 )
 async def get_document_health():
     """Health check específico de documentos"""
-    # NOTA: Implementação será adicionada posteriormente
     return DocumentHealth(
         status="healthy",
         database="connected",

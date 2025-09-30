@@ -19,9 +19,7 @@ class DatabaseConnection:
         if self._initialized:
             return
 
-        # Create async engine with optimized settings
         if settings.debug:
-            # Debug mode: use NullPool (no pooling)
             self._engine = create_async_engine(
                 settings.database_url,
                 echo=False,
@@ -29,7 +27,6 @@ class DatabaseConnection:
                 pool_pre_ping=True,
             )
         else:
-            # Production mode: use connection pooling
             self._engine = create_async_engine(
                 settings.database_url,
                 echo=False,
@@ -39,7 +36,6 @@ class DatabaseConnection:
                 pool_recycle=3600,
             )
 
-        # Create session factory
         self._session_factory = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,
@@ -70,11 +66,9 @@ class DatabaseConnection:
             logger.info("Database connection closed")
 
 
-# Global database connection instance
 db_connection = DatabaseConnection()
 
 
-# Dependency for FastAPI
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async for session in db_connection.get_session():
         yield session

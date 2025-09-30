@@ -86,7 +86,7 @@ class TextChunker:
                     contextualized_text = chunk_text
 
                 chunk = DocumentChunk(
-                    id=None,  # Will be set when saved
+                    id=None,
                     document_id=document_id,
                     content=contextualized_text,
                     original_content=chunk_text,

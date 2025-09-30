@@ -11,7 +11,6 @@ from domain.exceptions.document_exceptions import (
 )
 from domain.repositories.document_repository import DocumentRepository
 
-
 class TestDocumentService:
     
     @pytest.fixture
@@ -40,11 +39,9 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document_metadata
     ):
-        # Arrange
         mock_document_repository.exists = AsyncMock(return_value=False)
         mock_document_repository.save = AsyncMock(return_value=Mock())
         
-        # Act
         result = await document_service.create_document(
             title="Test Document",
             content="This is test content",
@@ -52,7 +49,6 @@ class TestDocumentService:
             metadata=sample_document_metadata
         )
         
-        # Assert
         mock_document_repository.exists.assert_called_once_with(sample_document_metadata.source)
         mock_document_repository.save.assert_called_once()
         assert result is not None
@@ -63,10 +59,9 @@ class TestDocumentService:
         document_service, 
         sample_document_metadata
     ):
-        # Act & Assert
         with pytest.raises(InvalidDocumentError, match="Document title cannot be empty"):
             await document_service.create_document(
-                title="   ",  # Empty/whitespace title
+                title="   ",
                 content="Valid content",
                 file_path="/test/doc.pdf",
                 metadata=sample_document_metadata
@@ -78,11 +73,10 @@ class TestDocumentService:
         document_service, 
         sample_document_metadata
     ):
-        # Act & Assert
         with pytest.raises(InvalidDocumentError, match="Document content cannot be empty"):
             await document_service.create_document(
                 title="Valid Title",
-                content="   ",  # Empty/whitespace content
+                content="   ",
                 file_path="/test/doc.pdf",
                 metadata=sample_document_metadata
             )
@@ -94,10 +88,8 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document_metadata
     ):
-        # Arrange
         mock_document_repository.exists = AsyncMock(return_value=True)
         
-        # Act & Assert
         with pytest.raises(DocumentAlreadyExistsError):
             await document_service.create_document(
                 title="Test Document",
@@ -113,14 +105,11 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document
     ):
-        # Arrange
         document_id = sample_document.id
         mock_document_repository.find_by_id = AsyncMock(return_value=sample_document)
         
-        # Act
         result = await document_service.get_document_by_id(document_id)
         
-        # Assert
         mock_document_repository.find_by_id.assert_called_once_with(document_id)
         assert result == sample_document
     
@@ -130,11 +119,9 @@ class TestDocumentService:
         document_service, 
         mock_document_repository
     ):
-        # Arrange
         document_id = uuid4()
         mock_document_repository.find_by_id = AsyncMock(return_value=None)
         
-        # Act & Assert
         with pytest.raises(DocumentNotFoundError):
             await document_service.get_document_by_id(document_id)
     
@@ -145,14 +132,11 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document
     ):
-        # Arrange
         source = "test_document.pdf"
         mock_document_repository.find_by_source = AsyncMock(return_value=sample_document)
         
-        # Act
         result = await document_service.get_document_by_source(source)
         
-        # Assert
         mock_document_repository.find_by_source.assert_called_once_with(source)
         assert result == sample_document
     
@@ -162,14 +146,11 @@ class TestDocumentService:
         document_service, 
         mock_document_repository
     ):
-        # Arrange
         source = "nonexistent.pdf"
         mock_document_repository.find_by_source = AsyncMock(return_value=None)
         
-        # Act
         result = await document_service.get_document_by_source(source)
         
-        # Assert
         assert result is None
     
     @pytest.mark.asyncio
@@ -179,14 +160,11 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document
     ):
-        # Arrange
         documents = [sample_document]
         mock_document_repository.find_all = AsyncMock(return_value=documents)
         
-        # Act
         result = await document_service.list_documents(limit=10, offset=0)
         
-        # Assert
         mock_document_repository.find_all.assert_called_once_with(limit=10, offset=0)
         assert result == documents
     
@@ -197,15 +175,12 @@ class TestDocumentService:
         mock_document_repository, 
         sample_document
     ):
-        # Arrange
         document_id = sample_document.id
         mock_document_repository.find_by_id = AsyncMock(return_value=sample_document)
         mock_document_repository.delete = AsyncMock(return_value=True)
         
-        # Act
         result = await document_service.delete_document(document_id)
         
-        # Assert
         mock_document_repository.find_by_id.assert_called_once_with(document_id)
         mock_document_repository.delete.assert_called_once_with(document_id)
         assert result is True
@@ -216,11 +191,9 @@ class TestDocumentService:
         document_service, 
         mock_document_repository
     ):
-        # Arrange
         document_id = uuid4()
         mock_document_repository.find_by_id = AsyncMock(return_value=None)
         
-        # Act & Assert
         with pytest.raises(DocumentNotFoundError):
             await document_service.delete_document(document_id)
     
@@ -232,7 +205,6 @@ class TestDocumentService:
         sample_document,
         mock_data_factory
     ):
-        # Arrange
         document_id = sample_document.id
         chunks = [
             mock_data_factory.create_document_chunk(content="Chunk 1", chunk_index=0),
@@ -242,38 +214,30 @@ class TestDocumentService:
         mock_document_repository.find_by_id = AsyncMock(return_value=sample_document)
         mock_document_repository.save = AsyncMock(return_value=sample_document)
         
-        # Act
         result = await document_service.add_chunks_to_document(document_id, chunks)
         
-        # Assert
         mock_document_repository.save.assert_called_once()
         assert result == sample_document
         
-        # Verify chunks were added with correct document_id
         for chunk in chunks:
             assert chunk.document_id == document_id
     
     def test_validate_document_content_valid(self, document_service):
-        # Valid content
         assert document_service.validate_document_content("This is valid content with enough text") is True
     
     def test_validate_document_content_empty(self, document_service):
-        # Empty content
         assert document_service.validate_document_content("") is False
         assert document_service.validate_document_content("   ") is False
         assert document_service.validate_document_content(None) is False
     
     def test_validate_document_content_too_short(self, document_service):
-        # Too short content
         assert document_service.validate_document_content("short") is False
-        assert document_service.validate_document_content("123456789") is False  # 9 chars
+        assert document_service.validate_document_content("123456789") is False
     
     def test_validate_document_content_minimum_length(self, document_service):
-        # Exactly 10 characters
         assert document_service.validate_document_content("1234567890") is True
     
     def test_calculate_document_stats(self, document_service, sample_document):
-        # Add some chunks to the document
         chunk1 = DocumentChunk(
             id=uuid4(),
             document_id=sample_document.id,
@@ -296,10 +260,8 @@ class TestDocumentService:
         sample_document.add_chunk(chunk1)
         sample_document.add_chunk(chunk2)
         
-        # Act
         stats = document_service.calculate_document_stats(sample_document)
         
-        # Assert
         assert "word_count" in stats
         assert "chunk_count" in stats
         assert "file_size_mb" in stats
@@ -311,9 +273,7 @@ class TestDocumentService:
         assert isinstance(stats["average_chunk_size"], int)
     
     def test_calculate_document_stats_no_chunks(self, document_service, sample_document):
-        # Document with no chunks
         stats = document_service.calculate_document_stats(sample_document)
         
-        # Should not divide by zero
         assert stats["chunk_count"] == 0
-        assert stats["average_chunk_size"] == len(sample_document.content)  # Divided by 1
+        assert stats["average_chunk_size"] == len(sample_document.content)

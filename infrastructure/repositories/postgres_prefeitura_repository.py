@@ -175,7 +175,6 @@ class PostgresPrefeituraRepository(PrefeituraRepository):
         self, percentual_limite: float = 90.0
     ) -> List[Prefeitura]:
         """Busca prefeituras com quota crítica (próxima do limite)"""
-        # Calcula percentual: (tokens_consumidos / quota_tokens) * 100 >= percentual_limite
         stmt = (
             select(PrefeituraModel)
             .where(

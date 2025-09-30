@@ -25,7 +25,6 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
     async def save(self, job: DocumentProcessingJob) -> None:
         """Salva um DocumentProcessingJob"""
         try:
-            # Verificar se já existe
             stmt = select(DocumentProcessingJobModel).where(
                 DocumentProcessingJobModel.id == job.id
             )
@@ -33,7 +32,6 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
             existing = result.scalar_one_or_none()
 
             if existing:
-                # Atualizar existente
                 existing.status = job.status.value
                 existing.current_step = job.current_step
                 existing.progress = job.progress
@@ -53,7 +51,6 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
                 existing.started_at = job.started_at
                 existing.completed_at = job.completed_at
             else:
-                # Criar novo
                 model = DocumentProcessingJobModel(
                     id=job.id,
                     document_id=job.document_id,

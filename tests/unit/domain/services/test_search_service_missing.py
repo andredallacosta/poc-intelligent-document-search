@@ -8,7 +8,6 @@ from domain.entities.document import DocumentChunk
 from domain.value_objects.embedding import Embedding
 from domain.entities.message import DocumentReference
 
-
 class TestSearchServiceMissingCoverage:
     
     @pytest.fixture
@@ -63,7 +62,6 @@ class TestSearchServiceMissingCoverage:
         query_embedding = Embedding.from_openai([0.1, 0.2, 0.3])
         mock_vector_repository.search_similar_chunks.return_value = sample_search_results
         
-        # Test with threshold that filters out second result
         results = await search_service.search_similar_content(
             query_embedding, 
             n_results=5, 
@@ -84,17 +82,15 @@ class TestSearchServiceMissingCoverage:
         
         assert len(references) == 2
         
-        # Check first reference
         ref1 = references[0]
         assert isinstance(ref1, DocumentReference)
         assert ref1.document_id == sample_search_results[0].chunk.document_id
         assert ref1.chunk_id == sample_search_results[0].chunk.id
-        assert ref1.source == "doc1.pdf"  # From SearchResult metadata
+        assert ref1.source == "doc1.pdf"
         assert ref1.page == 1
         assert ref1.similarity_score == 0.9
         assert ref1.excerpt == "First chunk content"
         
-        # Check second reference
         ref2 = references[1]
         assert ref2.source == "doc2.pdf"
         assert ref2.page == 2
@@ -102,7 +98,6 @@ class TestSearchServiceMissingCoverage:
         assert ref2.excerpt == "Second chunk content"
     
     def test_convert_results_to_references_missing_metadata(self, search_service):
-        # Test with search result that has missing metadata
         chunk = DocumentChunk(
             id=uuid4(),
             document_id=uuid4(),
@@ -118,15 +113,15 @@ class TestSearchServiceMissingCoverage:
             chunk=chunk,
             similarity_score=0.7,
             distance=0.3,
-            metadata={}  # Empty metadata
+            metadata={}
         )
         
         references = search_service.convert_results_to_references([search_result])
         
         assert len(references) == 1
         ref = references[0]
-        assert ref.source == "unknown"  # Default value
-        assert ref.page is None  # Default value
+        assert ref.source == "unknown"
+        assert ref.page is None
         assert ref.similarity_score == 0.7
         assert ref.excerpt == "Test content"
     
@@ -145,15 +140,13 @@ class TestSearchServiceMissingCoverage:
         
         excerpt = search_service._create_excerpt(long_content, max_length=50)
         
-        assert len(excerpt) <= 53  # 50 + "..."
+        assert len(excerpt) <= 53
         assert excerpt.endswith("...")
-        assert not excerpt.endswith(" ...")  # Should not end with space before ...
+        assert not excerpt.endswith(" ...")
     
     def test_calculate_relevance_score(self, search_service):
-        # Test with default values
         score = search_service.calculate_relevance_score(0.8)
         assert score == 0.8
         
-        # Test with custom factors
         score = search_service.calculate_relevance_score(0.8, document_popularity=1.2, recency_factor=0.9)
         assert score == 0.8 * 1.2 * 0.9

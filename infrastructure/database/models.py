@@ -50,7 +50,7 @@ class UsuarioModel(Base):
     )
     nome = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
-    senha_hash = Column(String(255), nullable=True)  # NULL até implementar auth
+    senha_hash = Column(String(255), nullable=True)
     ativo = Column(Boolean, default=True)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em = Column(
@@ -71,7 +71,7 @@ class DocumentoModel(Base):
     titulo = Column(String(500), nullable=False)
     conteudo = Column(Text, nullable=False)
     caminho_arquivo = Column(String(1000), nullable=False)
-    file_hash = Column(String(64), nullable=True)  # SHA256 para controle duplicação
+    file_hash = Column(String(64), nullable=True)
     meta_data = Column(JSON, default=dict)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em = Column(
@@ -86,7 +86,6 @@ class DocumentoModel(Base):
             func.json_extract_path_text("meta_data", "source"),
         ),
         UniqueConstraint("file_hash", name="unique_file_hash"),
-        # Constraint para source único (quando não NULL)
         Index(
             "idx_documento_source_unique",
             func.json_extract_path_text("meta_data", "source"),
@@ -129,23 +128,17 @@ class DocumentoEmbeddingModel(Base):
         ForeignKey("documento_chunk.id", ondelete="CASCADE"),
         nullable=False,
     )
-    embedding = Column(Vector(1536), nullable=False)  # OpenAI text-embedding-3-small
+    embedding = Column(Vector(1536), nullable=False)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())
 
-    __table_args__ = (
-        Index("idx_embedding_chunk", "chunk_id", unique=True),
-        # Índice IVFFlat para busca vetorial (será criado via migration)
-        # CREATE INDEX idx_documento_embedding_vector ON documento_embedding USING ivfflat (embedding vector_cosine_ops);
-    )
+    __table_args__ = (Index("idx_embedding_chunk", "chunk_id", unique=True),)
 
 
 class ChatSessionModel(Base):
     __tablename__ = "chat_session"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    usuario_id = Column(
-        UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True
-    )  # NULL para sessões anônimas
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
     ativo = Column(Boolean, default=True)
     meta_data = Column(JSON, default=dict)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())

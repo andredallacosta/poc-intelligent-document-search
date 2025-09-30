@@ -22,13 +22,11 @@ class PostgresFileUploadRepository(FileUploadRepository):
     async def save(self, file_upload: FileUpload) -> None:
         """Salva um FileUpload"""
         try:
-            # Verificar se já existe
             stmt = select(FileUploadModel).where(FileUploadModel.id == file_upload.id)
             result = await self.session.execute(stmt)
             existing = result.scalar_one_or_none()
 
             if existing:
-                # Atualizar existente
                 existing.filename = file_upload.filename
                 existing.file_size = file_upload.file_size
                 existing.content_type = file_upload.content_type
@@ -43,7 +41,6 @@ class PostgresFileUploadRepository(FileUploadRepository):
                 existing.expires_at = file_upload.expires_at
                 existing.uploaded_at = file_upload.uploaded_at
             else:
-                # Criar novo
                 model = FileUploadModel(
                     id=file_upload.id,
                     document_id=file_upload.document_id,
