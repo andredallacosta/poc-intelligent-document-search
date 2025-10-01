@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class PresignedUploadRequest(BaseModel):
@@ -25,7 +25,8 @@ class PresignedUploadRequest(BaseModel):
         default_factory=list, description="Tags do documento"
     )
 
-    @validator("content_type")
+    @field_validator("content_type")
+    @classmethod
     def validate_content_type(cls, v):
         allowed_types = [
             "application/pdf",
@@ -36,7 +37,8 @@ class PresignedUploadRequest(BaseModel):
             raise ValueError(f"Tipo de arquivo não suportado: {v}")
         return v
 
-    @validator("filename")
+    @field_validator("filename")
+    @classmethod
     def validate_filename(cls, v):
         allowed_extensions = [".pdf", ".doc", ".docx"]
         file_ext = "." + v.split(".")[-1].lower() if "." in v else ""
@@ -44,7 +46,8 @@ class PresignedUploadRequest(BaseModel):
             raise ValueError(f"Extensão não suportada: {file_ext}")
         return v
 
-    @validator("tags")
+    @field_validator("tags")
+    @classmethod
     def validate_tags(cls, v):
         if v and len(v) > 10:
             raise ValueError("Máximo de 10 tags permitidas")
