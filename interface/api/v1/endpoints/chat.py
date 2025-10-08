@@ -15,8 +15,10 @@ from domain.exceptions.token_exceptions import (
     TokenLimitExceededError,
 )
 from domain.value_objects.municipality_id import MunicipalityId
-from interface.middleware.auth_middleware import get_authenticated_user, get_current_municipality
-from interface.middleware.token_limit_middleware import TokenLimitCheck
+from interface.middleware.auth_middleware import (
+    get_authenticated_user,
+    get_current_municipality,
+)
 from interface.schemas.chat import ChatRequest, ChatResponse, ErrorResponse
 
 logger = logging.getLogger(__name__)

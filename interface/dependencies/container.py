@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.interfaces.llm_service import LLMServiceInterface
+from application.use_cases.authentication_use_case import AuthenticationUseCase
 from application.use_cases.chat_with_documents import ChatWithDocumentsUseCase
 from application.use_cases.create_presigned_upload import CreatePresignedUploadUseCase
 from application.use_cases.get_document_status import (
@@ -13,18 +14,17 @@ from application.use_cases.get_document_status import (
 from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
-from application.use_cases.authentication_use_case import AuthenticationUseCase
 from application.use_cases.token_management_use_cases import (
     AddExtraCreditsUseCase,
     GetTokenStatusUseCase,
     UpdateMonthlyLimitUseCase,
 )
 from application.use_cases.user_management_use_case import UserManagementUseCase
+from domain.services.authentication_service import AuthenticationService
 from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
-from domain.services.authentication_service import AuthenticationService
 from domain.services.threshold_service import ThresholdService
 from domain.services.token_limit_service import TokenLimitService
 from infrastructure.config.settings import settings
@@ -220,18 +220,26 @@ class Container:
         # This creates a temporary instance for middleware use
         # The real instance will be created via FastAPI dependency injection in the use case
         from domain.services.token_limit_service import TokenLimitService
-        from infrastructure.repositories.postgres_municipality_repository import PostgresMunicipalityRepository
-        from infrastructure.repositories.postgres_token_usage_period_repository import PostgresTokenUsagePeriodRepository
-        
+        from infrastructure.repositories.postgres_municipality_repository import (
+            PostgresMunicipalityRepository,
+        )
+        from infrastructure.repositories.postgres_token_usage_period_repository import (
+            PostgresTokenUsagePeriodRepository,
+        )
+
         # Create temporary repositories (will be replaced by real ones in use case)
-        municipality_repo = PostgresMunicipalityRepository(None)  # Will be injected properly
-        period_repo = PostgresTokenUsagePeriodRepository(None)    # Will be injected properly
+        municipality_repo = PostgresMunicipalityRepository(
+            None
+        )  # Will be injected properly
+        period_repo = PostgresTokenUsagePeriodRepository(
+            None
+        )  # Will be injected properly
         lock_service = self.get_token_lock_service()
-        
+
         return TokenLimitService(
             municipality_repo=municipality_repo,
             period_repo=period_repo,
-            lock_service=lock_service
+            lock_service=lock_service,
         )
 
     async def close_connections(self):
@@ -536,6 +544,8 @@ async def get_authentication_service(
         jwt_algorithm=settings.jwt_algorithm,
         jwt_expiry_days=settings.jwt_expiry_days,
         google_client_id=settings.google_client_id,
+        google_client_secret=settings.google_client_secret,
+        google_redirect_uri=settings.google_redirect_uri,
     )
 
 

@@ -49,39 +49,39 @@ class UserModel(Base):
     __tablename__ = "user"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    
+
     # Informações básicas
     email = Column(String(255), unique=True, nullable=False)
     full_name = Column(String(255), nullable=False, default="")
     role = Column(String(20), nullable=False, default="user")
-    
+
     # Multi-tenancy
     primary_municipality_id = Column(
         UUID(as_uuid=True), ForeignKey("municipality.id"), nullable=True
     )
     municipality_ids = Column(JSON, default=list)
-    
+
     # Autenticação
     password_hash = Column(String(255), nullable=True)
     auth_provider = Column(String(20), nullable=False, default="email_password")
     google_id = Column(String(255), nullable=True)
-    
+
     # Controle de conta
     is_active = Column(Boolean, default=True)
     email_verified = Column(Boolean, default=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
-    
+
     # Convite/Ativação
     invitation_token = Column(String(255), nullable=True)
     invitation_expires_at = Column(DateTime(timezone=True), nullable=True)
     invited_by = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
-    
+
     # Auditoria
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-    
+
     # Compatibilidade com código existente (será removido após migração)
     name = Column(String(255), nullable=True)
     municipality_id = Column(UUID(as_uuid=True), nullable=True)
@@ -94,19 +94,24 @@ class UserModel(Base):
         Index("idx_user_invitation_token", "invitation_token"),
         Index("idx_user_primary_municipality", "primary_municipality_id"),
         Index("idx_user_role_active", "role", "is_active"),
-        CheckConstraint("role IN ('superuser', 'admin', 'user')", name="check_role_valid"),
-        CheckConstraint("auth_provider IN ('email_password', 'google_oauth2')", name="check_auth_provider_valid"),
+        CheckConstraint(
+            "role IN ('superuser', 'admin', 'user')", name="check_role_valid"
+        ),
+        CheckConstraint(
+            "auth_provider IN ('email_password', 'google_oauth2')",
+            name="check_auth_provider_valid",
+        ),
         CheckConstraint(
             "(auth_provider = 'email_password' AND password_hash IS NOT NULL) OR (auth_provider = 'google_oauth2')",
-            name="check_email_password_has_hash"
+            name="check_email_password_has_hash",
         ),
         CheckConstraint(
             "(auth_provider = 'google_oauth2' AND google_id IS NOT NULL) OR (auth_provider = 'email_password')",
-            name="check_google_oauth_has_id"
+            name="check_google_oauth_has_id",
         ),
         CheckConstraint(
             "(invitation_token IS NULL AND invitation_expires_at IS NULL) OR (invitation_token IS NOT NULL AND invitation_expires_at IS NOT NULL)",
-            name="check_invitation_token_has_expiry"
+            name="check_invitation_token_has_expiry",
         ),
     )
 

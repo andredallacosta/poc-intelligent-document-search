@@ -1,10 +1,12 @@
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from infrastructure.config.settings import settings
 from interface.api.v1.router import api_router
@@ -105,6 +107,11 @@ async def add_process_time_header(request: Request, call_next):
 
 
 app.include_router(api_router, prefix=settings.api_prefix)
+
+# Serve static files for OAuth2 testing
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/")

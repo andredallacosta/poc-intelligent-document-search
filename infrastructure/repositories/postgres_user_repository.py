@@ -32,7 +32,9 @@ class PostgresUserRepository(UserRepository):
                 full_name=user.full_name,
                 role=user.role.value,
                 primary_municipality_id=(
-                    user.primary_municipality_id.value if user.primary_municipality_id else None
+                    user.primary_municipality_id.value
+                    if user.primary_municipality_id
+                    else None
                 ),
                 municipality_ids=[str(mid.value) for mid in user.municipality_ids],
                 password_hash=user.password_hash,
@@ -49,7 +51,9 @@ class PostgresUserRepository(UserRepository):
                 # Compatibilidade com código existente
                 name=user.full_name,
                 municipality_id=(
-                    user.primary_municipality_id.value if user.primary_municipality_id else None
+                    user.primary_municipality_id.value
+                    if user.primary_municipality_id
+                    else None
                 ),
                 active=user.is_active,
             )
@@ -98,9 +102,9 @@ class PostgresUserRepository(UserRepository):
         """Finds users from a municipality"""
         # Busca por primary_municipality_id ou municipality_ids (array JSON)
         stmt = select(UserModel).where(
-            (UserModel.primary_municipality_id == municipality_id.value) |
-            (func.json_array_length(UserModel.municipality_ids) > 0) &
-            (UserModel.municipality_ids.op('?')(str(municipality_id.value)))
+            (UserModel.primary_municipality_id == municipality_id.value)
+            | (func.json_array_length(UserModel.municipality_ids) > 0)
+            & (UserModel.municipality_ids.op("?")(str(municipality_id.value)))
         )
         stmt = stmt.order_by(UserModel.full_name)
 
@@ -175,7 +179,9 @@ class PostgresUserRepository(UserRepository):
                     full_name=user.full_name,
                     role=user.role.value,
                     primary_municipality_id=(
-                        user.primary_municipality_id.value if user.primary_municipality_id else None
+                        user.primary_municipality_id.value
+                        if user.primary_municipality_id
+                        else None
                     ),
                     municipality_ids=[str(mid.value) for mid in user.municipality_ids],
                     password_hash=user.password_hash,
@@ -191,7 +197,9 @@ class PostgresUserRepository(UserRepository):
                     # Compatibilidade com código existente
                     name=user.full_name,
                     municipality_id=(
-                        user.primary_municipality_id.value if user.primary_municipality_id else None
+                        user.primary_municipality_id.value
+                        if user.primary_municipality_id
+                        else None
                     ),
                     active=user.is_active,
                 )
@@ -290,26 +298,42 @@ class PostgresUserRepository(UserRepository):
         municipality_ids = []
         if model.municipality_ids:
             municipality_ids = [
-                MunicipalityId.from_string(mid_str) 
+                MunicipalityId.from_string(mid_str)
                 for mid_str in model.municipality_ids
             ]
-        
+
         return User(
             id=UserId.from_uuid(model.id),
             email=model.email,
-            full_name=model.full_name or model.name or "",  # Fallback para compatibilidade
+            full_name=model.full_name
+            or model.name
+            or "",  # Fallback para compatibilidade
             role=UserRole.from_string(model.role) if model.role else UserRole.USER,
             primary_municipality_id=(
                 MunicipalityId.from_uuid(model.primary_municipality_id)
                 if model.primary_municipality_id
-                else (MunicipalityId.from_uuid(model.municipality_id) if model.municipality_id else None)
+                else (
+                    MunicipalityId.from_uuid(model.municipality_id)
+                    if model.municipality_id
+                    else None
+                )
             ),
             municipality_ids=municipality_ids,
             password_hash=model.password_hash,
-            auth_provider=AuthProvider.from_string(model.auth_provider) if model.auth_provider else AuthProvider.EMAIL_PASSWORD,
+            auth_provider=(
+                AuthProvider.from_string(model.auth_provider)
+                if model.auth_provider
+                else AuthProvider.EMAIL_PASSWORD
+            ),
             google_id=model.google_id,
-            is_active=model.is_active if model.is_active is not None else (model.active if model.active is not None else True),
-            email_verified=model.email_verified if model.email_verified is not None else False,
+            is_active=(
+                model.is_active
+                if model.is_active is not None
+                else (model.active if model.active is not None else True)
+            ),
+            email_verified=(
+                model.email_verified if model.email_verified is not None else False
+            ),
             last_login=model.last_login,
             invitation_token=model.invitation_token,
             invitation_expires_at=model.invitation_expires_at,

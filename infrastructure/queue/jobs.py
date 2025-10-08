@@ -147,7 +147,7 @@ async def _process_document_async(
             vector_repo = PostgresVectorRepository(session)
             chunk_repo = PostgresDocumentChunkRepository(session)
             job_repo = PostgresDocumentProcessingJobRepository(session)
-            
+
             s3_service = S3Service(
                 bucket=settings.s3_bucket,
                 region=settings.s3_region,

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Google OAuth2 - Intelligent Document Search</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .auth-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .auth-section h2 {
+            color: #4285f4;
+            margin-top: 0;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+            display: block;
+            width: 100%;
+        }
+        button:hover {
+            background: #3367d6;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            background: #f8f9fa;
+            border-left: 4px solid #4285f4;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        pre {
+            background: #f1f3f4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 14px;
+        }
+        .user-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .user-info div {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .user-info strong {
+            color: #495057;
+        }
+        .token-display {
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Teste Google OAuth2</h1>
+        <p>Esta página permite testar a integração Google OAuth2 do sistema de autenticação.</p>
+
+        <!-- Seção 1: Obter URL de Autenticação -->
+        <div class="auth-section">
+            <h2>1. Obter URL de Autenticação</h2>
+            <p>Primeiro, vamos obter a URL de autenticação do Google:</p>
+            <button onclick="getGoogleAuthUrl()">Obter URL do Google</button>
+            <div id="authUrlResult"></div>
+        </div>
+
+        <!-- Seção 2: Login com Google -->
+        <div class="auth-section">
+            <h2>2. Login com Google</h2>
+            <p>Clique no botão abaixo para fazer login com sua conta Google:</p>
+            <button id="googleLoginBtn" onclick="loginWithGoogle()" disabled>
+                Fazer Login com Google
+            </button>
+            <div id="loginResult"></div>
+        </div>
+
+        <!-- Seção 3: Verificar Token -->
+        <div class="auth-section">
+            <h2>3. Verificar Usuário Autenticado</h2>
+            <p>Após o login, você pode verificar os dados do usuário:</p>
+            <button id="verifyTokenBtn" onclick="verifyToken()" disabled>
+                Verificar Token JWT
+            </button>
+            <div id="tokenResult"></div>
+        </div>
+
+        <!-- Seção 4: Testar Chat -->
+        <div class="auth-section">
+            <h2>4. Testar Chat Protegido</h2>
+            <p>Teste o endpoint de chat que requer autenticação:</p>
+            <button id="testChatBtn" onclick="testChat()" disabled>
+                Testar Chat
+            </button>
+            <div id="chatResult"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        let currentToken = null;
+        let googleAuthUrl = null;
+
+        // Função para fazer requisições HTTP
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail?.message || data.message || 'Erro na requisição');
+                }
+                
+                return data;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // 1. Obter URL de autenticação Google
+        async function getGoogleAuthUrl() {
+            const resultDiv = document.getElementById('authUrlResult');
+            resultDiv.innerHTML = '<p>Obtendo URL de autenticação...</p>';
+            
+            try {
+                const data = await makeRequest(`${API_BASE}/auth/google`);
+                googleAuthUrl = data.auth_url;
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <h3>✅ URL obtida com sucesso!</h3>
+                        <p><strong>Redirect URI:</strong> ${data.redirect_uri}</p>
+                        <div class="token-display">${data.auth_url}</div>
+                    </div>
+                `;
+                
+                // Habilita o botão de login
+                document.getElementById('googleLoginBtn').disabled = false;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Erro ao obter URL</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 2. Login com Google
+        function loginWithGoogle() {
+            if (!googleAuthUrl) {
+                alert('Primeiro obtenha a URL de autenticação!');
+                return;
+            }
+            
+            // Abre popup para autenticação
+            const popup = window.open(
+                googleAuthUrl,
+                'google-oauth',
+                'width=500,height=600,scrollbars=yes,resizable=yes'
+            );
+            
+            // Monitora o popup para capturar o código
+            const checkClosed = setInterval(() => {
+                if (popup.closed) {
+                    clearInterval(checkClosed);
+                    // Verifica se há código na URL atual (caso tenha sido redirecionado)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const code = urlParams.get('code');
+                    if (code) {
+                        handleGoogleCallback(code);
+                    }
+                }
+            }, 1000);
+        }
+
+        // Processa callback do Google
+        async function handleGoogleCallback(code) {
+            const resultDiv = document.getElementById('loginResult');
+            resultDiv.innerHTML = '<p>Processando login...</p>';
+            
+            try {
+                const data = await makeRequest(`${API_BASE}/auth/google/callback?code=${encodeURIComponent(code)}`);
+                currentToken = data.access_token;
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <h3>✅ Login realizado com sucesso!</h3>
+                        <div class="user-info">
+                            <div><strong>Nome:</strong> ${data.user.full_name}</div>
+                            <div><strong>Email:</strong> ${data.user.email}</div>
+                            <div><strong>Role:</strong> ${data.user.role}</div>
+                            <div><strong>Ativo:</strong> ${data.user.is_active ? 'Sim' : 'Não'}</div>
+                        </div>
+                        <p><strong>Token JWT:</strong></p>
+                        <div class="token-display">${data.access_token}</div>
+                    </div>
+                `;
+                
+                // Habilita botões seguintes
+                document.getElementById('verifyTokenBtn').disabled = false;
+                document.getElementById('testChatBtn').disabled = false;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Erro no login</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 3. Verificar token JWT
+        async function verifyToken() {
+            if (!currentToken) {
+                alert('Primeiro faça login!');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('tokenResult');
+            resultDiv.innerHTML = '<p>Verificando token...</p>';
+            
+            try {
+                const data = await makeRequest(`${API_BASE}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <h3>✅ Token válido!</h3>
+                        <div class="user-info">
+                            <div><strong>ID:</strong> ${data.id}</div>
+                            <div><strong>Nome:</strong> ${data.full_name}</div>
+                            <div><strong>Email:</strong> ${data.email}</div>
+                            <div><strong>Role:</strong> ${data.role}</div>
+                            <div><strong>Email Verificado:</strong> ${data.email_verified ? 'Sim' : 'Não'}</div>
+                            <div><strong>Último Login:</strong> ${data.last_login || 'N/A'}</div>
+                        </div>
+                        <p><strong>Prefeituras:</strong></p>
+                        <pre>${JSON.stringify(data.municipality_ids, null, 2)}</pre>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Token inválido</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 4. Testar chat protegido
+        async function testChat() {
+            if (!currentToken) {
+                alert('Primeiro faça login!');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('chatResult');
+            resultDiv.innerHTML = '<p>Testando chat...</p>';
+            
+            try {
+                const data = await makeRequest(`${API_BASE}/chat/ask`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({
+                        message: 'Olá! Este é um teste de autenticação.',
+                        session_id: null
+                    })
+                });
+                
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <h3>✅ Chat funcionando!</h3>
+                        <p><strong>Resposta da IA:</strong></p>
+                        <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 10px 0;">
+                            ${data.response}
+                        </div>
+                        <p><strong>Session ID:</strong> ${data.session_id}</p>
+                        <p><strong>Tokens Usados:</strong> ${data.tokens_used}</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Erro no chat</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Verifica se há código na URL (caso tenha sido redirecionado)
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (code) {
+                // Remove o código da URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                handleGoogleCallback(code);
+            }
+        });
+    </script>
+</body>
+</html>

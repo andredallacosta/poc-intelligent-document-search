@@ -230,11 +230,11 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
         created_at = model.created_at
         if created_at and created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
-            
+
         started_at = model.started_at
         if started_at and started_at.tzinfo is None:
             started_at = started_at.replace(tzinfo=timezone.utc)
-            
+
         completed_at = model.completed_at
         if completed_at and completed_at.tzinfo is None:
             completed_at = completed_at.replace(tzinfo=timezone.utc)

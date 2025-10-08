@@ -7,7 +7,6 @@ from fastapi.security import HTTPBearer
 from domain.exceptions.token_exceptions import MunicipalityInactiveError
 from domain.services.token_limit_service import TokenLimitService
 from domain.value_objects.municipality_id import MunicipalityId
-from interface.dependencies.container import container
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -95,6 +94,7 @@ class TokenLimitDependency:
 async def get_token_limit_dependency() -> TokenLimitDependency:
     """Factory to create token control dependency"""
     from interface.dependencies.container import get_token_limit_service
+
     token_limit_service = await get_token_limit_service()
     return TokenLimitDependency(token_limit_service)
 

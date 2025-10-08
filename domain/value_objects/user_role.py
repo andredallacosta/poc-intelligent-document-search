@@ -3,9 +3,10 @@ from enum import Enum
 
 class UserRole(Enum):
     """Roles hierárquicos do sistema"""
+
     SUPERUSER = "superuser"  # Equipe interna - acesso total
-    ADMIN = "admin"          # Chefe da prefeitura - gerencia usuários
-    USER = "user"            # Funcionário - usa IA
+    ADMIN = "admin"  # Chefe da prefeitura - gerencia usuários
+    USER = "user"  # Funcionário - usa IA
 
     def __str__(self) -> str:
         return self.value

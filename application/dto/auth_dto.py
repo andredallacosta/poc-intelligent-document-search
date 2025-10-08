@@ -5,6 +5,7 @@ from typing import List, Optional
 @dataclass
 class LoginEmailPasswordDTO:
     """DTO para login com email e senha"""
+
     email: str
     password: str
 
@@ -12,12 +13,14 @@ class LoginEmailPasswordDTO:
 @dataclass
 class LoginGoogleOAuth2DTO:
     """DTO para login com Google OAuth2"""
+
     google_token: str
 
 
 @dataclass
 class UserDTO:
     """DTO para dados do usuário"""
+
     id: str
     email: str
     full_name: str
@@ -33,6 +36,7 @@ class UserDTO:
 @dataclass
 class LoginResponseDTO:
     """DTO para resposta de login"""
+
     access_token: str
     token_type: str
     user: UserDTO
@@ -41,6 +45,7 @@ class LoginResponseDTO:
 @dataclass
 class CreateUserDTO:
     """DTO para criação de usuário"""
+
     email: str
     full_name: str
     role: str
@@ -52,6 +57,7 @@ class CreateUserDTO:
 @dataclass
 class UserListDTO:
     """DTO para listagem de usuários"""
+
     id: str
     email: str
     full_name: str
@@ -68,5 +74,6 @@ class UserListDTO:
 @dataclass
 class ActivateUserDTO:
     """DTO para ativação de usuário"""
+
     invitation_token: str
     password: Optional[str] = None

@@ -3,6 +3,7 @@ from enum import Enum
 
 class AuthProvider(Enum):
     """Provedores de autenticação suportados"""
+
     EMAIL_PASSWORD = "email_password"
     GOOGLE_OAUTH2 = "google_oauth2"
 
