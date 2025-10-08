@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from domain.entities.chat_session import ChatSession
 from domain.entities.message import Message, MessageRole, MessageType, DocumentReference
 from domain.exceptions.chat_exceptions import SessionNotFoundError
-from domain.value_objects.usuario_id import UsuarioId
+from domain.value_objects.user_id import UserId
 from infrastructure.repositories.postgres_session_repository import (
     PostgresSessionRepository,
     PostgresMessageRepository
@@ -59,7 +59,7 @@ class TestPostgresSessionRepository:
     async def test_find_session_by_id_found(self, repository, mock_session, sample_chat_session):
         mock_model = Mock(spec=ChatSessionModel)
         mock_model.id = sample_chat_session.id
-        mock_model.usuario_id = sample_chat_session.usuario_id.value if sample_chat_session.usuario_id else None
+        mock_model.user_id = sample_chat_session.user_id.value if sample_chat_session.user_id else None
         mock_model.ativo = sample_chat_session.is_active
         mock_model.meta_data = sample_chat_session.metadata
         mock_model.criado_em = sample_chat_session.created_at
@@ -195,7 +195,7 @@ class TestPostgresSessionRepository:
     def test_model_to_entity(self, repository):
         mock_model = Mock(spec=ChatSessionModel)
         mock_model.id = uuid4()
-        mock_model.usuario_id = uuid4()
+        mock_model.user_id = uuid4()
         mock_model.ativo = True
         mock_model.meta_data = {"key": "value"}
         mock_model.criado_em = datetime.utcnow()

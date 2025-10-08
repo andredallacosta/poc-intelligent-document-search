@@ -9,6 +9,11 @@ from domain.exceptions.chat_exceptions import (
     RateLimitExceededError,
     SessionNotFoundError,
 )
+from domain.exceptions.token_exceptions import (
+    MunicipalityInactiveError,
+    TokenLimitExceededError,
+)
+from interface.middleware.token_limit_middleware import TokenLimitCheck
 from interface.schemas.chat import ChatRequest, ChatResponse, ErrorResponse
 
 logger = logging.getLogger(__name__)
@@ -25,10 +30,17 @@ router = APIRouter(prefix="/chat", tags=["chat"])
         500: {"model": ErrorResponse, "description": "Internal server error"},
     },
     summary="Chat with documents",
-    description="Send a message and get an AI response based on indexed documents",
+    description="""
+    Send a message and get an AI response based on indexed documents with token control
+
+    - Automatically checks if municipality has available tokens
+    - Blocks usage if limit exceeded or municipality inactive
+    - Registers actual token consumption after AI response
+    """,
 )
 async def ask_question(
     request: ChatRequest,
+    municipality_id: TokenLimitCheck,  # NEW DEPENDENCY - checks tokens automatically
 ):
     try:
         logger.info(f"Processing chat request: '{request.message[:50]}...'")
@@ -62,6 +74,28 @@ async def ask_question(
             metadata=response_dto.metadata,
             processing_time=response_dto.processing_time,
             token_usage=response_dto.token_usage,
+        )
+
+    except TokenLimitExceededError as e:
+        logger.warning(f"Token limit exceeded: {e}")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "token_limit_exceeded",
+                "message": str(e),
+                "code": "TOKEN_LIMIT_EXCEEDED",
+            },
+        )
+
+    except MunicipalityInactiveError as e:
+        logger.warning(f"Municipality inactive: {e}")
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "municipality_inactive",
+                "message": str(e),
+                "code": "MUNICIPALITY_INACTIVE",
+            },
         )
 
     except InvalidMessageError as e:

@@ -13,7 +13,7 @@ from infrastructure.repositories.postgres_document_repository import (
     PostgresDocumentRepository,
     PostgresDocumentChunkRepository
 )
-from infrastructure.database.models import DocumentoModel, DocumentoChunkModel
+from infrastructure.database.models import DocumentModel, DocumentoChunkModel
 from tests.helpers.mock_factories import MockFactory
 
 
@@ -51,7 +51,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_save_existing_document_success(self, repository, mock_session, sample_document):
-        existing_model = Mock(spec=DocumentoModel)
+        existing_model = Mock(spec=DocumentModel)
         existing_model.titulo = "Old Title"
         existing_model.conteudo = "Old Content"
         
@@ -83,7 +83,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_by_id_found(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_model.id = sample_document.id
         mock_model.titulo = sample_document.title
         mock_model.conteudo = sample_document.content
@@ -111,7 +111,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_by_source_found(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_model
         
         with patch.object(repository, '_model_to_entity', return_value=sample_document):
@@ -131,7 +131,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_all_success(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = [mock_model]
@@ -146,7 +146,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_all_with_limit(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = [mock_model]
@@ -173,7 +173,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_by_title_similarity(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = [mock_model]
@@ -188,7 +188,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_by_content_search(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = [mock_model]
@@ -304,7 +304,7 @@ class TestPostgresDocumentRepository:
 
     @pytest.mark.asyncio
     async def test_find_by_content_hash_found(self, repository, mock_session, sample_document):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_model
         
         with patch.object(repository, '_model_to_entity', return_value=sample_document):
@@ -358,7 +358,7 @@ class TestPostgresDocumentRepository:
         assert result.file_type == "pdf"
 
     def test_model_to_entity(self, repository):
-        mock_model = Mock(spec=DocumentoModel)
+        mock_model = Mock(spec=DocumentModel)
         mock_model.id = uuid4()
         mock_model.titulo = "Test Title"
         mock_model.conteudo = "Test Content"

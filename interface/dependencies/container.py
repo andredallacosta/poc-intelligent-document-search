@@ -13,11 +13,17 @@ from application.use_cases.get_document_status import (
 from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
+from application.use_cases.token_management_use_cases import (
+    AddExtraCreditsUseCase,
+    GetTokenStatusUseCase,
+    UpdateMonthlyLimitUseCase,
+)
 from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
 from domain.services.threshold_service import ThresholdService
+from domain.services.token_limit_service import TokenLimitService
 from infrastructure.config.settings import settings
 from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
@@ -35,15 +41,18 @@ from infrastructure.repositories.postgres_document_repository import (
 from infrastructure.repositories.postgres_file_upload_repository import (
     PostgresFileUploadRepository,
 )
-from infrastructure.repositories.postgres_prefeitura_repository import (
-    PostgresPrefeituraRepository,
+from infrastructure.repositories.postgres_municipality_repository import (
+    PostgresMunicipalityRepository,
 )
 from infrastructure.repositories.postgres_session_repository import (
     PostgresMessageRepository,
     PostgresSessionRepository,
 )
-from infrastructure.repositories.postgres_usuario_repository import (
-    PostgresUsuarioRepository,
+from infrastructure.repositories.postgres_token_usage_period_repository import (
+    PostgresTokenUsagePeriodRepository,
+)
+from infrastructure.repositories.postgres_user_repository import (
+    PostgresUserRepository,
 )
 from infrastructure.repositories.postgres_vector_repository import (
     PostgresVectorRepository,
@@ -52,6 +61,7 @@ from infrastructure.repositories.redis_session_repository import (
     RedisMessageRepository,
     RedisSessionRepository,
 )
+from infrastructure.services.token_lock_service import TokenLockService
 
 
 class Container:
@@ -164,6 +174,63 @@ class Container:
             self._instances["document_processor"] = None
         return self._instances["document_processor"]
 
+    # === NEW SERVICES FOR TOKEN CONTROL ===
+
+    @lru_cache(maxsize=1)
+    def get_token_lock_service(self) -> TokenLockService:
+        """Service for distributed locks"""
+        if "token_lock_service" not in self._instances:
+            self._instances["token_lock_service"] = TokenLockService(
+                self.get_redis_client()
+            )
+        return self._instances["token_lock_service"]
+
+    def get_token_status_use_case(self) -> GetTokenStatusUseCase:
+        """Use case for token status"""
+        from application.use_cases.token_management_use_cases import (
+            GetTokenStatusUseCase,
+        )
+
+        # This will be created via dependency injection in FastAPI
+        return GetTokenStatusUseCase
+
+    def get_add_credits_use_case(self) -> AddExtraCreditsUseCase:
+        """Use case for adding credits"""
+        from application.use_cases.token_management_use_cases import (
+            AddExtraCreditsUseCase,
+        )
+
+        # This will be created via dependency injection in FastAPI
+        return AddExtraCreditsUseCase
+
+    def get_update_limit_use_case(self) -> UpdateMonthlyLimitUseCase:
+        """Use case for updating limit"""
+        from application.use_cases.token_management_use_cases import (
+            UpdateMonthlyLimitUseCase,
+        )
+
+        # This will be created via dependency injection in FastAPI
+        return UpdateMonthlyLimitUseCase
+
+    def get_token_limit_service(self) -> TokenLimitService:
+        """Token limit service - creates a temporary instance for middleware"""
+        # This creates a temporary instance for middleware use
+        # The real instance will be created via FastAPI dependency injection in the use case
+        from domain.services.token_limit_service import TokenLimitService
+        from infrastructure.repositories.postgres_municipality_repository import PostgresMunicipalityRepository
+        from infrastructure.repositories.postgres_token_usage_period_repository import PostgresTokenUsagePeriodRepository
+        
+        # Create temporary repositories (will be replaced by real ones in use case)
+        municipality_repo = PostgresMunicipalityRepository(None)  # Will be injected properly
+        period_repo = PostgresTokenUsagePeriodRepository(None)    # Will be injected properly
+        lock_service = self.get_token_lock_service()
+        
+        return TokenLimitService(
+            municipality_repo=municipality_repo,
+            period_repo=period_repo,
+            lock_service=lock_service
+        )
+
     async def close_connections(self):
         """Fecha todas as conexões"""
         if "redis_client" in self._instances:
@@ -196,18 +263,18 @@ async def get_postgres_document_chunk_repository(
     return PostgresDocumentChunkRepository(session)
 
 
-async def get_postgres_prefeitura_repository(
+async def get_postgres_municipality_repository(
     session: AsyncSession = Depends(get_db_session),
-) -> PostgresPrefeituraRepository:
-    """Dependency para PostgresPrefeituraRepository"""
-    return PostgresPrefeituraRepository(session)
+) -> PostgresMunicipalityRepository:
+    """Dependency for PostgresMunicipalityRepository"""
+    return PostgresMunicipalityRepository(session)
 
 
-async def get_postgres_usuario_repository(
+async def get_postgres_user_repository(
     session: AsyncSession = Depends(get_db_session),
-) -> PostgresUsuarioRepository:
-    """Dependency para PostgresUsuarioRepository"""
-    return PostgresUsuarioRepository(session)
+) -> PostgresUserRepository:
+    """Dependency for PostgresUserRepository"""
+    return PostgresUserRepository(session)
 
 
 async def get_postgres_session_repository(
@@ -247,16 +314,47 @@ async def get_search_service(
     )
 
 
+async def get_postgres_token_usage_period_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> PostgresTokenUsagePeriodRepository:
+    """Dependency for PostgresTokenUsagePeriodRepository"""
+    return PostgresTokenUsagePeriodRepository(session)
+
+
+def get_token_lock_service() -> TokenLockService:
+    """Dependency for TokenLockService"""
+    return container.get_token_lock_service()
+
+
+async def get_token_limit_service(
+    municipality_repo: PostgresMunicipalityRepository = Depends(
+        get_postgres_municipality_repository
+    ),
+    period_repo: PostgresTokenUsagePeriodRepository = Depends(
+        get_postgres_token_usage_period_repository
+    ),
+    lock_service: TokenLockService = Depends(get_token_lock_service),
+) -> TokenLimitService:
+    """Dependency for TokenLimitService"""
+    return TokenLimitService(
+        municipality_repo=municipality_repo,
+        period_repo=period_repo,
+        lock_service=lock_service,
+    )
+
+
 async def get_chat_use_case(
     chat_service: ChatService = Depends(get_chat_service),
     search_service: SearchService = Depends(get_search_service),
     llm_service: LLMServiceInterface = Depends(get_llm_service),
+    token_limit_service: TokenLimitService = Depends(get_token_limit_service),
 ) -> ChatWithDocumentsUseCase:
     """Dependency para ChatWithDocumentsUseCase com PostgreSQL (para FastAPI)"""
     return ChatWithDocumentsUseCase(
         chat_service=chat_service,
         search_service=search_service,
         llm_service=llm_service,
+        token_limit_service=token_limit_service,
     )
 
 
@@ -264,6 +362,7 @@ async def create_chat_use_case() -> ChatWithDocumentsUseCase:
     """Cria ChatWithDocumentsUseCase sem Depends (para chamada direta)"""
     chat_service = container.get_chat_service()
     llm_service = container.get_llm_service()
+    token_lock_service = container.get_token_lock_service()
 
     from infrastructure.database.connection import get_db_session
 
@@ -271,10 +370,20 @@ async def create_chat_use_case() -> ChatWithDocumentsUseCase:
         vector_repo = PostgresVectorRepository(session)
         search_service = SearchService(vector_repository=vector_repo)
 
+        # Create token-related repositories and services
+        municipality_repo = PostgresMunicipalityRepository(session)
+        period_repo = PostgresTokenUsagePeriodRepository(session)
+        token_limit_service = TokenLimitService(
+            municipality_repo=municipality_repo,
+            period_repo=period_repo,
+            lock_service=token_lock_service,
+        )
+
         return ChatWithDocumentsUseCase(
             chat_service=chat_service,
             search_service=search_service,
             llm_service=llm_service,
+            token_limit_service=token_limit_service,
         )
 
 
@@ -382,3 +491,30 @@ async def get_job_status_use_case(
 ) -> GetJobStatusUseCase:
     """Dependency para GetJobStatusUseCase"""
     return GetJobStatusUseCase(job_repository=job_repo)
+
+
+# === NEW DEPENDENCIES FOR TOKEN CONTROL ===
+
+
+# === TOKEN USE CASES ===
+
+
+async def get_token_status_use_case(
+    token_limit_service: TokenLimitService = Depends(get_token_limit_service),
+) -> GetTokenStatusUseCase:
+    """Dependency for GetTokenStatusUseCase"""
+    return GetTokenStatusUseCase(token_limit_service)
+
+
+async def get_add_credits_use_case(
+    token_limit_service: TokenLimitService = Depends(get_token_limit_service),
+) -> AddExtraCreditsUseCase:
+    """Dependency for AddExtraCreditsUseCase"""
+    return AddExtraCreditsUseCase(token_limit_service)
+
+
+async def get_update_limit_use_case(
+    token_limit_service: TokenLimitService = Depends(get_token_limit_service),
+) -> UpdateMonthlyLimitUseCase:
+    """Dependency for UpdateMonthlyLimitUseCase"""
+    return UpdateMonthlyLimitUseCase(token_limit_service)

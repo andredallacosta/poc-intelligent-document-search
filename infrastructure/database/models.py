@@ -6,6 +6,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -21,115 +22,118 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 
-class PrefeituraModel(Base):
-    __tablename__ = "prefeitura"
+class MunicipalityModel(Base):
+    __tablename__ = "municipality"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    nome = Column(String(255), nullable=False)
-    quota_tokens = Column(Integer, nullable=False, default=10000)
-    tokens_consumidos = Column(Integer, default=0)
-    ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
-    atualizado_em = Column(
+    name = Column(String(255), nullable=False)
+    token_quota = Column(Integer, nullable=False, default=10000)
+    tokens_consumed = Column(Integer, default=0)
+    active = Column(Boolean, default=True)
+    monthly_token_limit = Column(Integer, default=20000)
+    contract_date = Column(Date, server_default=func.current_date())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
-        Index("idx_prefeitura_ativo", "ativo"),
-        CheckConstraint("quota_tokens >= 0", name="check_quota_positive"),
-        CheckConstraint("tokens_consumidos >= 0", name="check_tokens_positive"),
+        Index("idx_municipality_active", "active"),
+        CheckConstraint("token_quota >= 0", name="check_quota_positive"),
+        CheckConstraint("tokens_consumed >= 0", name="check_tokens_positive"),
+        CheckConstraint("monthly_token_limit > 0", name="check_monthly_limit_positive"),
     )
 
 
-class UsuarioModel(Base):
-    __tablename__ = "usuario"
+class UserModel(Base):
+    __tablename__ = "user"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    prefeitura_id = Column(
-        UUID(as_uuid=True), ForeignKey("prefeitura.id"), nullable=True
+    municipality_id = Column(
+        UUID(as_uuid=True), ForeignKey("municipality.id"), nullable=True
     )
-    nome = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=False)
-    senha_hash = Column(String(255), nullable=True)
-    ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
-    atualizado_em = Column(
+    password_hash = Column(String(255), nullable=True)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
-        Index("idx_usuario_prefeitura", "prefeitura_id"),
-        Index("idx_usuario_email", "email"),
-        Index("idx_usuario_ativo", "ativo"),
+        Index("idx_user_municipality", "municipality_id"),
+        Index("idx_user_email", "email"),
+        Index("idx_user_active", "active"),
     )
 
 
-class DocumentoModel(Base):
-    __tablename__ = "documento"
+class DocumentModel(Base):
+    __tablename__ = "document"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    titulo = Column(String(500), nullable=False)
-    conteudo = Column(Text, nullable=False)
-    caminho_arquivo = Column(String(1000), nullable=False)
+    title = Column(String(500), nullable=False)
+    content = Column(Text, nullable=False)
+    file_path = Column(String(1000), nullable=False)
     file_hash = Column(String(64), nullable=True)
-    meta_data = Column(JSON, default=dict)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
-    atualizado_em = Column(
+    meta_data = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
-        Index("idx_documento_titulo", "titulo"),
-        Index("idx_documento_file_hash", "file_hash"),
+        Index("idx_document_title", "title"),
+        Index("idx_document_file_hash", "file_hash"),
         Index(
-            "idx_documento_metadata_source",
+            "idx_document_metadata_source",
             func.json_extract_path_text("meta_data", "source"),
         ),
         UniqueConstraint("file_hash", name="unique_file_hash"),
         Index(
-            "idx_documento_source_unique",
+            "idx_document_source_unique",
             func.json_extract_path_text("meta_data", "source"),
             unique=True,
         ),
     )
 
 
-class DocumentoChunkModel(Base):
-    __tablename__ = "documento_chunk"
+class DocumentChunkModel(Base):
+    __tablename__ = "document_chunk"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    documento_id = Column(
+    document_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("documento.id", ondelete="CASCADE"),
+        ForeignKey("document.id", ondelete="CASCADE"),
         nullable=False,
     )
-    conteudo = Column(Text, nullable=False)
-    indice_chunk = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    chunk_index = Column(Integer, nullable=False)
     start_char = Column(Integer, nullable=False, default=0)
     end_char = Column(Integer, nullable=False, default=0)
-    meta_data = Column(JSON, default=dict)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
+    meta_data = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        Index("idx_chunk_documento", "documento_id"),
-        Index("idx_chunk_indice", "documento_id", "indice_chunk"),
+        Index("idx_chunk_document", "document_id"),
+        Index("idx_chunk_index", "document_id", "chunk_index"),
         UniqueConstraint(
-            "documento_id", "indice_chunk", name="unique_chunk_per_document"
+            "document_id", "chunk_index", name="unique_chunk_per_document"
         ),
     )
 
 
-class DocumentoEmbeddingModel(Base):
-    __tablename__ = "documento_embedding"
+class DocumentEmbeddingModel(Base):
+    __tablename__ = "document_embedding"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     chunk_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("documento_chunk.id", ondelete="CASCADE"),
+        ForeignKey("document_chunk.id", ondelete="CASCADE"),
         nullable=False,
     )
     embedding = Column(Vector(1536), nullable=False)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (Index("idx_embedding_chunk", "chunk_id", unique=True),)
 
@@ -138,16 +142,16 @@ class ChatSessionModel(Base):
     __tablename__ = "chat_session"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
     ativo = Column(Boolean, default=True)
-    meta_data = Column(JSON, default=dict)
+    meta_data = Column("metadata", JSON, default=dict)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())
     atualizado_em = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
-        Index("idx_session_usuario", "usuario_id"),
+        Index("idx_session_user", "user_id"),
         Index("idx_session_ativo", "ativo"),
         Index("idx_session_created", "criado_em"),
     )
@@ -167,7 +171,7 @@ class MessageModel(Base):
     tipo_mensagem = Column(String(50), default="text")
     referencias_documento = Column(JSON, default=list)
     tokens_usados = Column(Integer, default=0)
-    meta_data = Column(JSON, default=dict)
+    meta_data = Column("metadata", JSON, default=dict)
     criado_em = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
@@ -221,7 +225,7 @@ class DocumentProcessingJobModel(Base):
     content_hash_algorithm = Column(String(20), nullable=True)
     content_hash_value = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
-    meta_data = Column(JSON, default=dict)
+    meta_data = Column("metadata", JSON, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
@@ -244,5 +248,45 @@ class DocumentProcessingJobModel(Base):
         CheckConstraint(
             "status IN ('uploaded', 'extracting', 'checking_duplicates', 'chunking', 'embedding', 'completed', 'failed', 'duplicate')",
             name="check_valid_status",
+        ),
+    )
+
+
+class TokenUsagePeriodModel(Base):
+    __tablename__ = "token_usage_period"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    municipality_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("municipality.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    base_limit = Column(Integer, nullable=False)
+    extra_credits = Column(Integer, default=0)
+    tokens_consumed = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_token_period_current", "municipality_id", "period_start", "period_end"
+        ),
+        Index("idx_token_period_active", "municipality_id", "period_end"),
+        CheckConstraint("base_limit > 0", name="check_base_limit_positive"),
+        CheckConstraint("extra_credits >= 0", name="check_extra_credits_non_negative"),
+        CheckConstraint(
+            "tokens_consumed >= 0", name="check_tokens_consumed_non_negative"
+        ),
+        CheckConstraint("period_start < period_end", name="check_period_valid"),
+        CheckConstraint(
+            "tokens_consumed <= (base_limit + extra_credits)",
+            name="check_tokens_not_exceed_limit",
+        ),
+        UniqueConstraint(
+            "municipality_id", "period_start", name="uq_municipality_period"
         ),
     )

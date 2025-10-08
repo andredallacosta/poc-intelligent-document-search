@@ -46,19 +46,19 @@ class InvalidUserDataException(BusinessRuleViolationError):
         super().__init__(message, details)
 
 
-class PrefeituraInactiveException(BusinessRuleViolationError):
-    """Exceção para operações em prefeitura inativa"""
+class MunicipalityInactiveException(BusinessRuleViolationError):
+    """Exception for operations on inactive municipality"""
 
-    def __init__(self, prefeitura_id: str):
-        message = f"Prefeitura {prefeitura_id} está inativa"
-        details = {"prefeitura_id": prefeitura_id}
+    def __init__(self, municipality_id: str):
+        message = f"Municipality {municipality_id} is inactive"
+        details = {"municipality_id": municipality_id}
         super().__init__(message, details)
 
 
 class UserInactiveException(BusinessRuleViolationError):
-    """Exceção para operações com usuário inativo"""
+    """Exception for operations with inactive user"""
 
-    def __init__(self, usuario_id: str):
-        message = f"Usuário {usuario_id} está inativo"
-        details = {"usuario_id": usuario_id}
+    def __init__(self, user_id: str):
+        message = f"User {user_id} is inactive"
+        details = {"user_id": user_id}
         super().__init__(message, details)

@@ -88,7 +88,7 @@ class DocumentService:
             for chunk in chunks:
                 chunk.document_id = document_id
                 document.add_chunk(chunk)
-            
+
             document = await self._document_repository.save(document)
 
         return document

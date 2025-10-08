@@ -3,192 +3,202 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from domain.entities.prefeitura import Prefeitura
-from domain.entities.usuario import Usuario
+from domain.entities.municipality import Municipality
+from domain.entities.user import User
 from domain.exceptions.business_exceptions import BusinessRuleViolationError
-from domain.repositories.prefeitura_repository import PrefeituraRepository
-from domain.repositories.usuario_repository import UsuarioRepository
-from domain.value_objects.prefeitura_id import PrefeituraId
-from domain.value_objects.usuario_id import UsuarioId
+from domain.repositories.municipality_repository import MunicipalityRepository
+from domain.repositories.user_repository import UserRepository
+from domain.value_objects.municipality_id import MunicipalityId
+from domain.value_objects.user_id import UserId
 from interface.dependencies.container import (
-    get_postgres_prefeitura_repository,
-    get_postgres_usuario_repository,
+    get_postgres_municipality_repository,
+    get_postgres_user_repository,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.post("/prefeituras", response_model=dict)
-async def create_prefeitura(
-    nome: str,
-    quota_tokens: int = 10000,
-    prefeitura_repo: PrefeituraRepository = Depends(get_postgres_prefeitura_repository),
+@router.post("/municipalities", response_model=dict)
+async def create_municipality(
+    name: str,
+    token_quota: int = 10000,
+    municipality_repo: MunicipalityRepository = Depends(
+        get_postgres_municipality_repository
+    ),
 ):
-    """Cria uma nova prefeitura"""
+    """Creates a new municipality"""
     try:
-        prefeitura = Prefeitura.create(nome=nome, quota_tokens=quota_tokens)
-        await prefeitura_repo.save(prefeitura)
+        municipality = Municipality.create(name=name, token_quota=token_quota)
+        await municipality_repo.save(municipality)
 
         return {
-            "id": str(prefeitura.id),
-            "nome": prefeitura.nome,
-            "quota_tokens": prefeitura.quota_tokens,
-            "tokens_consumidos": prefeitura.tokens_consumidos,
-            "ativo": prefeitura.ativo,
-            "criado_em": prefeitura.criado_em.isoformat(),
+            "id": str(municipality.id),
+            "name": municipality.name,
+            "token_quota": municipality.token_quota,
+            "tokens_consumed": municipality.tokens_consumed,
+            "active": municipality.active,
+            "created_at": municipality.created_at.isoformat(),
         }
     except BusinessRuleViolationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/prefeituras", response_model=List[dict])
-async def list_prefeituras(
+@router.get("/municipalities", response_model=List[dict])
+async def list_municipalities(
     limit: Optional[int] = 50,
     offset: int = 0,
-    prefeitura_repo: PrefeituraRepository = Depends(get_postgres_prefeitura_repository),
+    municipality_repo: MunicipalityRepository = Depends(
+        get_postgres_municipality_repository
+    ),
 ):
-    """Lista prefeituras ativas"""
+    """Lists active municipalities"""
     try:
-        prefeituras = await prefeitura_repo.find_all_active(limit=limit, offset=offset)
+        municipalities = await municipality_repo.find_all_active(
+            limit=limit, offset=offset
+        )
 
         return [
             {
-                "id": str(p.id),
-                "nome": p.nome,
-                "quota_tokens": p.quota_tokens,
-                "tokens_consumidos": p.tokens_consumidos,
-                "tokens_restantes": p.tokens_restantes,
-                "percentual_consumo": p.percentual_consumo,
-                "ativo": p.ativo,
-                "criado_em": p.criado_em.isoformat(),
+                "id": str(m.id),
+                "name": m.name,
+                "token_quota": m.token_quota,
+                "tokens_consumed": m.tokens_consumed,
+                "remaining_tokens": m.remaining_tokens,
+                "consumption_percentage": m.consumption_percentage,
+                "active": m.active,
+                "created_at": m.created_at.isoformat(),
             }
-            for p in prefeituras
+            for m in municipalities
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao listar prefeituras: {e}")
-
-
-@router.get("/prefeituras/{prefeitura_id}", response_model=dict)
-async def get_prefeitura(
-    prefeitura_id: UUID,
-    prefeitura_repo: PrefeituraRepository = Depends(get_postgres_prefeitura_repository),
-):
-    """Busca prefeitura por ID"""
-    try:
-        prefeitura = await prefeitura_repo.find_by_id(
-            PrefeituraId.from_uuid(prefeitura_id)
+        raise HTTPException(
+            status_code=500, detail=f"Error listing municipalities: {e}"
         )
 
-        if not prefeitura:
-            raise HTTPException(status_code=404, detail="Prefeitura não encontrada")
+
+@router.get("/municipalities/{municipality_id}", response_model=dict)
+async def get_municipality(
+    municipality_id: UUID,
+    municipality_repo: MunicipalityRepository = Depends(
+        get_postgres_municipality_repository
+    ),
+):
+    """Finds municipality by ID"""
+    try:
+        municipality = await municipality_repo.find_by_id(
+            MunicipalityId.from_uuid(municipality_id)
+        )
+
+        if not municipality:
+            raise HTTPException(status_code=404, detail="Municipality not found")
 
         return {
-            "id": str(prefeitura.id),
-            "nome": prefeitura.nome,
-            "quota_tokens": prefeitura.quota_tokens,
-            "tokens_consumidos": prefeitura.tokens_consumidos,
-            "tokens_restantes": prefeitura.tokens_restantes,
-            "percentual_consumo": prefeitura.percentual_consumo,
-            "quota_esgotada": prefeitura.quota_esgotada,
-            "quota_critica": prefeitura.quota_critica,
-            "ativo": prefeitura.ativo,
-            "criado_em": prefeitura.criado_em.isoformat(),
-            "atualizado_em": prefeitura.atualizado_em.isoformat(),
+            "id": str(municipality.id),
+            "name": municipality.name,
+            "token_quota": municipality.token_quota,
+            "tokens_consumed": municipality.tokens_consumed,
+            "remaining_tokens": municipality.remaining_tokens,
+            "consumption_percentage": municipality.consumption_percentage,
+            "quota_exhausted": municipality.quota_exhausted,
+            "quota_critical": municipality.quota_critical,
+            "active": municipality.active,
+            "created_at": municipality.created_at.isoformat(),
+            "updated_at": municipality.updated_at.isoformat(),
         }
     except BusinessRuleViolationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/usuarios", response_model=dict)
-async def create_usuario(
-    nome: str,
+@router.post("/users", response_model=dict)
+async def create_user(
+    name: str,
     email: str,
-    prefeitura_id: Optional[UUID] = None,
-    usuario_repo: UsuarioRepository = Depends(get_postgres_usuario_repository),
+    municipality_id: Optional[UUID] = None,
+    user_repo: UserRepository = Depends(get_postgres_user_repository),
 ):
-    """Cria um novo usuário"""
+    """Creates a new user"""
     try:
-        prefeitura_id_obj = (
-            PrefeituraId.from_uuid(prefeitura_id) if prefeitura_id else None
+        municipality_id_obj = (
+            MunicipalityId.from_uuid(municipality_id) if municipality_id else None
         )
-        usuario = Usuario.create(
-            nome=nome, email=email, prefeitura_id=prefeitura_id_obj
-        )
-        await usuario_repo.save(usuario)
+        user = User.create(name=name, email=email, municipality_id=municipality_id_obj)
+        await user_repo.save(user)
 
         return {
-            "id": str(usuario.id),
-            "nome": usuario.nome,
-            "email": usuario.email,
-            "prefeitura_id": (
-                str(usuario.prefeitura_id) if usuario.prefeitura_id else None
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "municipality_id": (
+                str(user.municipality_id) if user.municipality_id else None
             ),
-            "is_anonimo": usuario.is_anonimo,
-            "ativo": usuario.ativo,
-            "criado_em": usuario.criado_em.isoformat(),
+            "is_anonymous": user.is_anonymous,
+            "active": user.active,
+            "created_at": user.created_at.isoformat(),
         }
     except BusinessRuleViolationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/usuarios", response_model=List[dict])
-async def list_usuarios(
-    prefeitura_id: Optional[UUID] = None,
+@router.get("/users", response_model=List[dict])
+async def list_users(
+    municipality_id: Optional[UUID] = None,
     limit: Optional[int] = 50,
     offset: int = 0,
-    usuario_repo: UsuarioRepository = Depends(get_postgres_usuario_repository),
+    user_repo: UserRepository = Depends(get_postgres_user_repository),
 ):
-    """Lista usuários"""
+    """Lists users"""
     try:
-        if prefeitura_id:
-            usuarios = await usuario_repo.find_by_prefeitura_id(
-                PrefeituraId.from_uuid(prefeitura_id), limit=limit, offset=offset
+        if municipality_id:
+            users = await user_repo.find_by_municipality_id(
+                MunicipalityId.from_uuid(municipality_id), limit=limit, offset=offset
             )
         else:
-            usuarios = await usuario_repo.find_all_active(limit=limit, offset=offset)
+            users = await user_repo.find_all_active(limit=limit, offset=offset)
 
         return [
             {
                 "id": str(u.id),
-                "nome": u.nome,
+                "name": u.name,
                 "email": u.email,
-                "prefeitura_id": str(u.prefeitura_id) if u.prefeitura_id else None,
-                "is_anonimo": u.is_anonimo,
-                "ativo": u.ativo,
-                "criado_em": u.criado_em.isoformat(),
+                "municipality_id": (
+                    str(u.municipality_id) if u.municipality_id else None
+                ),
+                "is_anonymous": u.is_anonymous,
+                "active": u.active,
+                "created_at": u.created_at.isoformat(),
             }
-            for u in usuarios
+            for u in users
         ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao listar usuários: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing users: {e}")
 
 
-@router.get("/usuarios/{usuario_id}", response_model=dict)
-async def get_usuario(
-    usuario_id: UUID,
-    usuario_repo: UsuarioRepository = Depends(get_postgres_usuario_repository),
+@router.get("/users/{user_id}", response_model=dict)
+async def get_user(
+    user_id: UUID,
+    user_repo: UserRepository = Depends(get_postgres_user_repository),
 ):
-    """Busca usuário por ID"""
+    """Finds user by ID"""
     try:
-        usuario = await usuario_repo.find_by_id(UsuarioId.from_uuid(usuario_id))
+        user = await user_repo.find_by_id(UserId.from_uuid(user_id))
 
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
         return {
-            "id": str(usuario.id),
-            "nome": usuario.nome,
-            "email": usuario.email,
-            "prefeitura_id": (
-                str(usuario.prefeitura_id) if usuario.prefeitura_id else None
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "municipality_id": (
+                str(user.municipality_id) if user.municipality_id else None
             ),
-            "is_anonimo": usuario.is_anonimo,
-            "tem_prefeitura": usuario.tem_prefeitura,
-            "tem_autenticacao": usuario.tem_autenticacao,
-            "email_domain": usuario.email_domain,
-            "ativo": usuario.ativo,
-            "criado_em": usuario.criado_em.isoformat(),
-            "atualizado_em": usuario.atualizado_em.isoformat(),
+            "is_anonymous": user.is_anonymous,
+            "has_municipality": user.has_municipality,
+            "has_authentication": user.has_authentication,
+            "email_domain": user.email_domain,
+            "active": user.active,
+            "created_at": user.created_at.isoformat(),
+            "updated_at": user.updated_at.isoformat(),
         }
     except BusinessRuleViolationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -196,33 +206,37 @@ async def get_usuario(
 
 @router.get("/stats", response_model=dict)
 async def get_admin_stats(
-    prefeitura_repo: PrefeituraRepository = Depends(get_postgres_prefeitura_repository),
-    usuario_repo: UsuarioRepository = Depends(get_postgres_usuario_repository),
+    municipality_repo: MunicipalityRepository = Depends(
+        get_postgres_municipality_repository
+    ),
+    user_repo: UserRepository = Depends(get_postgres_user_repository),
 ):
-    """Estatísticas administrativas"""
+    """Administrative statistics"""
     try:
-        total_prefeituras = await prefeitura_repo.count()
-        prefeituras_ativas = await prefeitura_repo.count_active()
-        total_usuarios = await usuario_repo.count()
-        usuarios_ativos = await usuario_repo.count_active()
-        usuarios_anonimos = await usuario_repo.count_anonimos()
+        total_municipalities = await municipality_repo.count()
+        active_municipalities = await municipality_repo.count_active()
+        total_users = await user_repo.count()
+        active_users = await user_repo.count_active()
+        anonymous_users = await user_repo.count_anonymous()
 
-        prefeituras_quota_critica = await prefeitura_repo.find_by_quota_critica()
-        prefeituras_quota_esgotada = await prefeitura_repo.find_by_quota_esgotada()
+        municipalities_critical_quota = await municipality_repo.find_by_critical_quota()
+        municipalities_exhausted_quota = (
+            await municipality_repo.find_by_exhausted_quota()
+        )
 
         return {
-            "prefeituras": {
-                "total": total_prefeituras,
-                "ativas": prefeituras_ativas,
-                "quota_critica": len(prefeituras_quota_critica),
-                "quota_esgotada": len(prefeituras_quota_esgotada),
+            "municipalities": {
+                "total": total_municipalities,
+                "active": active_municipalities,
+                "critical_quota": len(municipalities_critical_quota),
+                "exhausted_quota": len(municipalities_exhausted_quota),
             },
-            "usuarios": {
-                "total": total_usuarios,
-                "ativos": usuarios_ativos,
-                "anonimos": usuarios_anonimos,
-                "vinculados": total_usuarios - usuarios_anonimos,
+            "users": {
+                "total": total_users,
+                "active": active_users,
+                "anonymous": anonymous_users,
+                "linked": total_users - anonymous_users,
             },
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao obter estatísticas: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting statistics: {e}")

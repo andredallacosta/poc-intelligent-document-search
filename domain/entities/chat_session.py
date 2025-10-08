@@ -4,13 +4,13 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 from domain.entities.message import Message
-from domain.value_objects.usuario_id import UsuarioId
+from domain.value_objects.user_id import UserId
 
 
 @dataclass
 class ChatSession:
     id: UUID
-    usuario_id: Optional[UsuarioId] = None
+    user_id: Optional[UserId] = None
     messages: List[Message] = field(default_factory=list)
     created_at: datetime = None
     updated_at: datetime = None
@@ -50,20 +50,20 @@ class ChatSession:
 
     @property
     def is_anonymous(self) -> bool:
-        """Verifica se é uma sessão anônima"""
-        return self.usuario_id is None
+        """Checks if it's an anonymous session"""
+        return self.user_id is None
 
     @property
     def has_user(self) -> bool:
-        """Verifica se a sessão tem usuário associado"""
-        return self.usuario_id is not None
+        """Checks if session has associated user"""
+        return self.user_id is not None
 
-    def associate_user(self, usuario_id: UsuarioId) -> None:
-        """Associa um usuário à sessão"""
-        self.usuario_id = usuario_id
+    def associate_user(self, user_id: UserId) -> None:
+        """Associates a user to the session"""
+        self.user_id = user_id
         self.updated_at = datetime.utcnow()
 
     def dissociate_user(self) -> None:
-        """Remove associação com usuário (torna anônima)"""
-        self.usuario_id = None
+        """Removes user association (makes anonymous)"""
+        self.user_id = None
         self.updated_at = datetime.utcnow()

@@ -14,7 +14,7 @@ from domain.repositories.document_repository import (
 )
 from domain.value_objects.document_metadata import DocumentMetadata
 from domain.value_objects.embedding import Embedding
-from infrastructure.database.models import DocumentoChunkModel, DocumentoModel
+from infrastructure.database.models import DocumentChunkModel, DocumentModel
 
 logger = logging.getLogger(__name__)
 
@@ -34,32 +34,30 @@ class PostgresDocumentRepository(DocumentRepository):
                 else None
             )
 
-            existing_stmt = select(DocumentoModel).where(
-                DocumentoModel.id == document.id
-            )
+            existing_stmt = select(DocumentModel).where(DocumentModel.id == document.id)
             existing_result = await self._session.execute(existing_stmt)
             existing_model = existing_result.scalar_one_or_none()
 
             if existing_model:
-                existing_model.titulo = document.title
-                existing_model.conteudo = document.content
-                existing_model.caminho_arquivo = document.metadata.source
+                existing_model.title = document.title
+                existing_model.content = document.content
+                existing_model.file_path = document.metadata.source
                 existing_model.file_hash = file_hash
                 existing_model.meta_data = self._metadata_to_dict(document.metadata)
-                existing_model.atualizado_em = document.updated_at
+                existing_model.updated_at = document.updated_at
 
                 await self._session.flush()
                 return document
             else:
-                model = DocumentoModel(
+                model = DocumentModel(
                     id=document.id,
-                    titulo=document.title,
-                    conteudo=document.content,
-                    caminho_arquivo=document.metadata.source,
+                    title=document.title,
+                    content=document.content,
+                    file_path=document.metadata.source,
                     file_hash=file_hash,
                     meta_data=self._metadata_to_dict(document.metadata),
-                    criado_em=document.created_at,
-                    atualizado_em=document.updated_at,
+                    created_at=document.created_at,
+                    updated_at=document.updated_at,
                 )
 
                 self._session.add(model)
@@ -81,7 +79,7 @@ class PostgresDocumentRepository(DocumentRepository):
 
     async def find_by_id(self, document_id) -> Optional[Document]:
         """Busca documento por ID"""
-        stmt = select(DocumentoModel).where(DocumentoModel.id == document_id)
+        stmt = select(DocumentModel).where(DocumentModel.id == document_id)
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
 
@@ -92,8 +90,8 @@ class PostgresDocumentRepository(DocumentRepository):
 
     async def find_by_source(self, source: str) -> Optional[Document]:
         """Busca documento por source"""
-        stmt = select(DocumentoModel).where(
-            func.json_extract_path_text(DocumentoModel.meta_data, "source") == source
+        stmt = select(DocumentModel).where(
+            func.json_extract_path_text(DocumentModel.meta_data, "source") == source
         )
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
@@ -107,7 +105,7 @@ class PostgresDocumentRepository(DocumentRepository):
         self, limit: Optional[int] = None, offset: int = 0
     ) -> List[Document]:
         """Lista todos os documentos"""
-        stmt = select(DocumentoModel).order_by(DocumentoModel.criado_em.desc())
+        stmt = select(DocumentModel).order_by(DocumentModel.created_at.desc())
 
         if limit:
             stmt = stmt.limit(limit)
@@ -124,9 +122,9 @@ class PostgresDocumentRepository(DocumentRepository):
     ) -> List[Document]:
         """Busca documentos por similaridade de título"""
         stmt = (
-            select(DocumentoModel)
-            .where(func.similarity(DocumentoModel.titulo, title) > threshold)
-            .order_by(func.similarity(DocumentoModel.titulo, title).desc())
+            select(DocumentModel)
+            .where(func.similarity(DocumentModel.title, title) > threshold)
+            .order_by(func.similarity(DocumentModel.title, title).desc())
         )
 
         result = await self._session.execute(stmt)
@@ -139,14 +137,14 @@ class PostgresDocumentRepository(DocumentRepository):
     ) -> List[Document]:
         """Busca documentos por termo no conteúdo"""
         stmt = (
-            select(DocumentoModel)
+            select(DocumentModel)
             .where(
                 or_(
-                    DocumentoModel.titulo.ilike(f"%{search_term}%"),
-                    DocumentoModel.conteudo.ilike(f"%{search_term}%"),
+                    DocumentModel.title.ilike(f"%{search_term}%"),
+                    DocumentModel.content.ilike(f"%{search_term}%"),
                 )
             )
-            .order_by(DocumentoModel.criado_em.desc())
+            .order_by(DocumentModel.created_at.desc())
             .limit(limit)
         )
 
@@ -165,15 +163,15 @@ class PostgresDocumentRepository(DocumentRepository):
             )
 
             stmt = (
-                update(DocumentoModel)
-                .where(DocumentoModel.id == document.id)
+                update(DocumentModel)
+                .where(DocumentModel.id == document.id)
                 .values(
-                    titulo=document.title,
-                    conteudo=document.content,
-                    caminho_arquivo=document.metadata.source,
+                    title=document.title,
+                    content=document.content,
+                    file_path=document.metadata.source,
                     file_hash=file_hash,
                     meta_data=self._metadata_to_dict(document.metadata),
-                    atualizado_em=document.updated_at,
+                    updated_at=document.updated_at,
                 )
             )
 
@@ -199,14 +197,14 @@ class PostgresDocumentRepository(DocumentRepository):
 
     async def delete(self, document_id) -> bool:
         """Remove um documento"""
-        stmt = delete(DocumentoModel).where(DocumentoModel.id == document_id)
+        stmt = delete(DocumentModel).where(DocumentModel.id == document_id)
         result = await self._session.execute(stmt)
         return result.rowcount > 0
 
     async def exists(self, source: str) -> bool:
         """Verifica se existe documento com o source"""
-        stmt = select(func.count(DocumentoModel.id)).where(
-            func.json_extract_path_text(DocumentoModel.meta_data, "source") == source
+        stmt = select(func.count(DocumentModel.id)).where(
+            func.json_extract_path_text(DocumentModel.meta_data, "source") == source
         )
         result = await self._session.execute(stmt)
         count = result.scalar()
@@ -215,8 +213,8 @@ class PostgresDocumentRepository(DocumentRepository):
     async def exists_by_content_hash(self, content: str) -> bool:
         """Verifica se existe documento com conteúdo idêntico"""
         file_hash = self._calculate_file_hash(content)
-        stmt = select(func.count(DocumentoModel.id)).where(
-            DocumentoModel.file_hash == file_hash
+        stmt = select(func.count(DocumentModel.id)).where(
+            DocumentModel.file_hash == file_hash
         )
         result = await self._session.execute(stmt)
         count = result.scalar()
@@ -224,13 +222,13 @@ class PostgresDocumentRepository(DocumentRepository):
 
     async def count(self) -> int:
         """Conta total de documentos"""
-        stmt = select(func.count(DocumentoModel.id))
+        stmt = select(func.count(DocumentModel.id))
         result = await self._session.execute(stmt)
         return result.scalar()
 
     async def find_by_content_hash(self, content_hash: str) -> Optional[Document]:
         """Busca documento por hash do conteúdo (para deduplicação)"""
-        stmt = select(DocumentoModel).where(DocumentoModel.file_hash == content_hash)
+        stmt = select(DocumentModel).where(DocumentModel.file_hash == content_hash)
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
 
@@ -293,19 +291,19 @@ class PostgresDocumentRepository(DocumentRepository):
             custom_fields=data.get("custom_fields", {}),
         )
 
-    def _model_to_entity(self, model: DocumentoModel) -> Document:
+    def _model_to_entity(self, model: DocumentModel) -> Document:
         """Converte model para entidade"""
         metadata = self._dict_to_metadata(model.meta_data or {})
 
         return Document(
             id=model.id,
-            title=model.titulo,
-            content=model.conteudo,
+            title=model.title,
+            content=model.content,
             file_path=metadata.source,
             metadata=metadata,
             chunks=[],
-            created_at=model.criado_em,
-            updated_at=model.atualizado_em,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
         )
 
 
@@ -318,15 +316,15 @@ class PostgresDocumentChunkRepository(DocumentChunkRepository):
     async def save_chunk(self, chunk: DocumentChunk) -> DocumentChunk:
         """Salva um chunk de documento"""
         try:
-            model = DocumentoChunkModel(
+            model = DocumentChunkModel(
                 id=chunk.id,
-                documento_id=chunk.document_id,
-                conteudo=chunk.content,
-                indice_chunk=chunk.chunk_index,
+                document_id=chunk.document_id,
+                content=chunk.content,
+                chunk_index=chunk.chunk_index,
                 start_char=chunk.start_char,
                 end_char=chunk.end_char,
                 meta_data={},
-                criado_em=chunk.created_at,
+                created_at=chunk.created_at,
             )
 
             self._session.add(model)
@@ -344,7 +342,7 @@ class PostgresDocumentChunkRepository(DocumentChunkRepository):
 
     async def find_chunk_by_id(self, chunk_id) -> Optional[DocumentChunk]:
         """Busca chunk por ID"""
-        stmt = select(DocumentoChunkModel).where(DocumentoChunkModel.id == chunk_id)
+        stmt = select(DocumentChunkModel).where(DocumentChunkModel.id == chunk_id)
         result = await self._session.execute(stmt)
         model = result.scalar_one_or_none()
 
@@ -356,9 +354,9 @@ class PostgresDocumentChunkRepository(DocumentChunkRepository):
     async def find_chunks_by_document_id(self, document_id) -> List[DocumentChunk]:
         """Busca chunks de um documento"""
         stmt = (
-            select(DocumentoChunkModel)
-            .where(DocumentoChunkModel.documento_id == document_id)
-            .order_by(DocumentoChunkModel.indice_chunk)
+            select(DocumentChunkModel)
+            .where(DocumentChunkModel.document_id == document_id)
+            .order_by(DocumentChunkModel.chunk_index)
         )
 
         result = await self._session.execute(stmt)
@@ -368,8 +366,8 @@ class PostgresDocumentChunkRepository(DocumentChunkRepository):
 
     async def delete_chunks_by_document_id(self, document_id) -> int:
         """Remove chunks de um documento"""
-        stmt = delete(DocumentoChunkModel).where(
-            DocumentoChunkModel.documento_id == document_id
+        stmt = delete(DocumentChunkModel).where(
+            DocumentChunkModel.document_id == document_id
         )
         result = await self._session.execute(stmt)
         return result.rowcount
@@ -378,16 +376,16 @@ class PostgresDocumentChunkRepository(DocumentChunkRepository):
         """Atualiza embedding de um chunk (implementado no VectorRepository)"""
         return True
 
-    def _model_to_entity(self, model: DocumentoChunkModel) -> DocumentChunk:
+    def _model_to_entity(self, model: DocumentChunkModel) -> DocumentChunk:
         """Converte model para entidade"""
         return DocumentChunk(
             id=model.id,
-            document_id=model.documento_id,
-            content=model.conteudo,
-            original_content=model.conteudo,
-            chunk_index=model.indice_chunk,
+            document_id=model.document_id,
+            content=model.content,
+            original_content=model.content,
+            chunk_index=model.chunk_index,
             start_char=model.start_char,
             end_char=model.end_char,
             embedding=None,
-            created_at=model.criado_em,
+            created_at=model.created_at,
         )

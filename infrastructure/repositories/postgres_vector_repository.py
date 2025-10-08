@@ -12,9 +12,9 @@ from domain.exceptions.document_exceptions import DocumentProcessingError
 from domain.repositories.vector_repository import SearchResult, VectorRepository
 from domain.value_objects.embedding import Embedding
 from infrastructure.database.models import (
-    DocumentoChunkModel,
-    DocumentoEmbeddingModel,
-    DocumentoModel,
+    DocumentChunkModel,
+    DocumentEmbeddingModel,
+    DocumentModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class PostgresVectorRepository(VectorRepository):
 
             vector_data = self._embedding_to_vector(embedding)
 
-            model = DocumentoEmbeddingModel(
+            model = DocumentEmbeddingModel(
                 chunk_id=chunk_id,
                 embedding=vector_data,
             )
@@ -72,50 +72,45 @@ class PostgresVectorRepository(VectorRepository):
             query_vector = self._embedding_to_vector(query_embedding)
 
             stmt = select(
-                DocumentoEmbeddingModel.embedding,
-                DocumentoChunkModel.id,
-                DocumentoChunkModel.conteudo,
-                DocumentoChunkModel.documento_id,
-                DocumentoChunkModel.indice_chunk,
-                DocumentoChunkModel.start_char,
-                DocumentoChunkModel.end_char,
-                DocumentoChunkModel.criado_em,
-                DocumentoModel.titulo,
-                DocumentoModel.meta_data,
+                DocumentEmbeddingModel.embedding,
+                DocumentChunkModel.id,
+                DocumentChunkModel.content,
+                DocumentChunkModel.document_id,
+                DocumentChunkModel.chunk_index,
+                DocumentChunkModel.start_char,
+                DocumentChunkModel.end_char,
+                DocumentChunkModel.created_at,
+                DocumentModel.title,
+                DocumentModel.meta_data,
                 (
-                    1 - DocumentoEmbeddingModel.embedding.cosine_distance(query_vector)
+                    1 - DocumentEmbeddingModel.embedding.cosine_distance(query_vector)
                 ).label("similarity_score"),
             ).select_from(
-                DocumentoEmbeddingModel.__table__.join(
-                    DocumentoChunkModel.__table__,
-                    DocumentoEmbeddingModel.chunk_id == DocumentoChunkModel.id,
+                DocumentEmbeddingModel.__table__.join(
+                    DocumentChunkModel.__table__,
+                    DocumentEmbeddingModel.chunk_id == DocumentChunkModel.id,
                 ).join(
-                    DocumentoModel.__table__,
-                    DocumentoChunkModel.documento_id == DocumentoModel.id,
+                    DocumentModel.__table__,
+                    DocumentChunkModel.document_id == DocumentModel.id,
                 )
             )
 
             if similarity_threshold > 0:
                 stmt = stmt.where(
-                    (
-                        1
-                        - DocumentoEmbeddingModel.embedding.cosine_distance(
-                            query_vector
-                        )
-                    )
+                    (1 - DocumentEmbeddingModel.embedding.cosine_distance(query_vector))
                     >= similarity_threshold
                 )
 
             if metadata_filter:
                 for key, value in metadata_filter.items():
                     stmt = stmt.where(
-                        func.json_extract_path_text(DocumentoModel.meta_data, key)
+                        func.json_extract_path_text(DocumentModel.meta_data, key)
                         == value
                     )
 
             stmt = stmt.order_by(
                 (
-                    1 - DocumentoEmbeddingModel.embedding.cosine_distance(query_vector)
+                    1 - DocumentEmbeddingModel.embedding.cosine_distance(query_vector)
                 ).desc()
             ).limit(n_results)
 
@@ -126,21 +121,21 @@ class PostgresVectorRepository(VectorRepository):
             for row in rows:
                 chunk = DocumentChunk(
                     id=row.id,
-                    document_id=row.documento_id,
-                    content=row.conteudo,
-                    original_content=row.conteudo,
-                    chunk_index=row.indice_chunk,
+                    document_id=row.document_id,
+                    content=row.content,
+                    original_content=row.content,
+                    chunk_index=row.chunk_index,
                     start_char=row.start_char,
                     end_char=row.end_char,
                     embedding=self._vector_to_embedding(row.embedding),
-                    created_at=row.criado_em,
+                    created_at=row.created_at,
                 )
 
                 similarity_score = float(row.similarity_score)
                 distance = 1.0 - similarity_score
 
                 doc_metadata = {
-                    "document_title": row.titulo,
+                    "document_title": row.title,
                     "document_metadata": row.meta_data or {},
                 }
 
@@ -167,8 +162,8 @@ class PostgresVectorRepository(VectorRepository):
     async def delete_document_embeddings(self, document_id: UUID) -> int:
         """Remove todos os embeddings de um documento"""
         try:
-            chunk_stmt = select(DocumentoChunkModel.id).where(
-                DocumentoChunkModel.documento_id == document_id
+            chunk_stmt = select(DocumentChunkModel.id).where(
+                DocumentChunkModel.document_id == document_id
             )
             chunk_result = await self._session.execute(chunk_stmt)
             chunk_ids = [row.id for row in chunk_result.fetchall()]
@@ -176,8 +171,8 @@ class PostgresVectorRepository(VectorRepository):
             if not chunk_ids:
                 return 0
 
-            delete_stmt = delete(DocumentoEmbeddingModel).where(
-                DocumentoEmbeddingModel.chunk_id.in_(chunk_ids)
+            delete_stmt = delete(DocumentEmbeddingModel).where(
+                DocumentEmbeddingModel.chunk_id.in_(chunk_ids)
             )
             result = await self._session.execute(delete_stmt)
 
@@ -201,8 +196,8 @@ class PostgresVectorRepository(VectorRepository):
     async def get_embedding_by_chunk_id(self, chunk_id: UUID) -> Optional[Embedding]:
         """Busca embedding por ID do chunk"""
         try:
-            stmt = select(DocumentoEmbeddingModel.embedding).where(
-                DocumentoEmbeddingModel.chunk_id == chunk_id
+            stmt = select(DocumentEmbeddingModel.embedding).where(
+                DocumentEmbeddingModel.chunk_id == chunk_id
             )
             result = await self._session.execute(stmt)
             vector_data = result.scalar_one_or_none()
@@ -219,7 +214,7 @@ class PostgresVectorRepository(VectorRepository):
     async def count_embeddings(self) -> int:
         """Conta total de embeddings"""
         try:
-            stmt = select(func.count(DocumentoEmbeddingModel.id))
+            stmt = select(func.count(DocumentEmbeddingModel.id))
             result = await self._session.execute(stmt)
             return result.scalar()
         except Exception as e:
@@ -229,8 +224,8 @@ class PostgresVectorRepository(VectorRepository):
     async def embedding_exists(self, chunk_id: UUID) -> bool:
         """Verifica se embedding existe para o chunk"""
         try:
-            stmt = select(func.count(DocumentoEmbeddingModel.id)).where(
-                DocumentoEmbeddingModel.chunk_id == chunk_id
+            stmt = select(func.count(DocumentEmbeddingModel.id)).where(
+                DocumentEmbeddingModel.chunk_id == chunk_id
             )
             result = await self._session.execute(stmt)
             count = result.scalar()
@@ -244,8 +239,8 @@ class PostgresVectorRepository(VectorRepository):
     async def _delete_chunk_embedding_internal(self, chunk_id: UUID) -> bool:
         """Remove embedding de um chunk (método interno)"""
         try:
-            stmt = delete(DocumentoEmbeddingModel).where(
-                DocumentoEmbeddingModel.chunk_id == chunk_id
+            stmt = delete(DocumentEmbeddingModel).where(
+                DocumentEmbeddingModel.chunk_id == chunk_id
             )
             result = await self._session.execute(stmt)
             return result.rowcount > 0
@@ -256,8 +251,8 @@ class PostgresVectorRepository(VectorRepository):
     async def _chunk_exists(self, chunk_id: UUID) -> bool:
         """Verifica se chunk existe"""
         try:
-            stmt = select(func.count(DocumentoChunkModel.id)).where(
-                DocumentoChunkModel.id == chunk_id
+            stmt = select(func.count(DocumentChunkModel.id)).where(
+                DocumentChunkModel.id == chunk_id
             )
             result = await self._session.execute(stmt)
             count = result.scalar()

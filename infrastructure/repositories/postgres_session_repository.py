@@ -10,7 +10,7 @@ from domain.entities.chat_session import ChatSession
 from domain.entities.message import DocumentReference, Message, MessageRole, MessageType
 from domain.exceptions.chat_exceptions import SessionNotFoundError
 from domain.repositories.session_repository import MessageRepository, SessionRepository
-from domain.value_objects.usuario_id import UsuarioId
+from domain.value_objects.user_id import UserId
 from infrastructure.database.models import ChatSessionModel, MessageModel
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class PostgresSessionRepository(SessionRepository):
         try:
             model = ChatSessionModel(
                 id=session.id,
-                usuario_id=session.usuario_id.value if session.usuario_id else None,
+                user_id=session.user_id.value if session.user_id else None,
                 ativo=session.is_active,
                 meta_data=session.metadata,
                 criado_em=session.created_at,
@@ -99,9 +99,7 @@ class PostgresSessionRepository(SessionRepository):
         """Converte model para entidade"""
         return ChatSession(
             id=model.id,
-            usuario_id=(
-                UsuarioId.from_uuid(model.usuario_id) if model.usuario_id else None
-            ),
+            user_id=(UserId.from_uuid(model.user_id) if model.user_id else None),
             messages=[],
             created_at=model.criado_em,
             updated_at=model.atualizado_em,
