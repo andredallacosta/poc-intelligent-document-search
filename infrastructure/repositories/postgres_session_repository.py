@@ -28,10 +28,10 @@ class PostgresSessionRepository(SessionRepository):
             model = ChatSessionModel(
                 id=session.id,
                 user_id=session.user_id.value if session.user_id else None,
-                ativo=session.is_active,
+                active=session.is_active,
                 meta_data=session.metadata,
-                criado_em=session.created_at,
-                atualizado_em=session.updated_at,
+                created_at=session.created_at,
+                updated_at=session.updated_at,
             )
 
             self._session.add(model)
@@ -58,8 +58,8 @@ class PostgresSessionRepository(SessionRepository):
         self, limit: Optional[int] = None
     ) -> List[ChatSession]:
         """Busca sessões ativas"""
-        stmt = select(ChatSessionModel).where(ChatSessionModel.ativo.is_(True))
-        stmt = stmt.order_by(ChatSessionModel.atualizado_em.desc())
+        stmt = select(ChatSessionModel).where(ChatSessionModel.active.is_(True))
+        stmt = stmt.order_by(ChatSessionModel.updated_at.desc())
 
         if limit:
             stmt = stmt.limit(limit)
@@ -80,7 +80,7 @@ class PostgresSessionRepository(SessionRepository):
         stmt = (
             update(ChatSessionModel)
             .where(ChatSessionModel.id == session_id)
-            .values(ativo=False)
+            .values(active=False)
         )
 
         result = await self._session.execute(stmt)
@@ -101,9 +101,9 @@ class PostgresSessionRepository(SessionRepository):
             id=model.id,
             user_id=(UserId.from_uuid(model.user_id) if model.user_id else None),
             messages=[],
-            created_at=model.criado_em,
-            updated_at=model.atualizado_em,
-            is_active=model.ativo,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+            is_active=model.active,
             metadata=model.meta_data or {},
         )
 
@@ -121,14 +121,14 @@ class PostgresMessageRepository(MessageRepository):
                 id=message.id,
                 session_id=message.session_id,
                 role=message.role.value,
-                conteudo=message.content,
-                tipo_mensagem=message.message_type.value,
-                referencias_documento=self._references_to_dict(
+                content=message.content,
+                message_type=message.message_type.value,
+                document_references=self._references_to_dict(
                     message.document_references
                 ),
-                tokens_usados=0,
+                tokens_used=0,
                 meta_data=message.metadata,
-                criado_em=message.created_at,
+                created_at=message.created_at,
             )
 
             self._session.add(model)
@@ -215,11 +215,11 @@ class PostgresMessageRepository(MessageRepository):
             id=model.id,
             session_id=model.session_id,
             role=MessageRole(model.role),
-            content=model.conteudo,
-            message_type=MessageType(model.tipo_mensagem),
+            content=model.content,
+            message_type=MessageType(model.message_type),
             document_references=self._dict_to_references(
-                model.referencias_documento or []
+                model.document_references or []
             ),
             metadata=model.meta_data or {},
-            created_at=model.criado_em,
+            created_at=model.created_at,
         )

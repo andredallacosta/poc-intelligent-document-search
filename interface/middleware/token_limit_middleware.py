@@ -92,11 +92,11 @@ class TokenLimitDependency:
 
 
 # Dependency factory
-def get_token_limit_dependency() -> TokenLimitDependency:
+async def get_token_limit_dependency() -> TokenLimitDependency:
     """Factory to create token control dependency"""
-    # Use FastAPI dependency injection
     from interface.dependencies.container import get_token_limit_service
-    return TokenLimitDependency(get_token_limit_service())
+    token_limit_service = await get_token_limit_service()
+    return TokenLimitDependency(token_limit_service)
 
 
 # Type alias for use in endpoints

@@ -1,4 +1,5 @@
 import logging
+from datetime import timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -225,6 +226,19 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
                 algorithm=model.content_hash_algorithm, value=model.content_hash_value
             )
 
+        # Ensure datetime fields are timezone-aware
+        created_at = model.created_at
+        if created_at and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+            
+        started_at = model.started_at
+        if started_at and started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+            
+        completed_at = model.completed_at
+        if completed_at and completed_at.tzinfo is None:
+            completed_at = completed_at.replace(tzinfo=timezone.utc)
+
         job = DocumentProcessingJob(
             id=model.id,
             document_id=model.document_id,
@@ -240,9 +254,9 @@ class PostgresDocumentProcessingJobRepository(DocumentProcessingJobRepository):
             content_hash=content_hash,
             error_message=model.error_message,
             metadata=model.meta_data or {},
-            created_at=model.created_at,
-            started_at=model.started_at,
-            completed_at=model.completed_at,
+            created_at=created_at,
+            started_at=started_at,
+            completed_at=completed_at,
         )
 
         return job

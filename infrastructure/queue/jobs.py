@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 from uuid import UUID
 
@@ -72,7 +72,7 @@ def process_document_job(file_upload_id: str, processing_job_id: str) -> Dict[st
             "processing_time": result.get("processing_time"),
             "chunks_created": result.get("chunks_created"),
             "embeddings_generated": result.get("embeddings_generated"),
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -123,46 +123,12 @@ async def _process_document_async(
         PostgresVectorRepository,
     )
 
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
 
+    # Load initial data with separate session to avoid transaction conflicts
     async with get_async_session() as session:
         file_upload_repo = PostgresFileUploadRepository(session)
         job_repo = PostgresDocumentProcessingJobRepository(session)
-        document_repo = PostgresDocumentRepository(session)
-        vector_repo = PostgresVectorRepository(session)
-
-        s3_service = S3Service(
-            bucket=settings.s3_bucket,
-            region=settings.s3_region,
-            access_key=settings.aws_access_key,
-            secret_key=settings.aws_secret_key,
-            endpoint_url=settings.s3_endpoint_url,
-            public_endpoint_url=getattr(
-                settings, "s3_public_endpoint_url", settings.s3_endpoint_url
-            ),
-        )
-        openai_client = OpenAIClient()
-        text_chunker = TextChunker(
-            chunk_size=getattr(settings, "chunk_size", 500),
-            chunk_overlap=getattr(settings, "chunk_overlap", 50),
-            use_contextual_retrieval=getattr(
-                settings, "use_contextual_retrieval", True
-            ),
-        )
-
-        chunk_repo = PostgresDocumentChunkRepository(session)
-        document_service = DocumentService(
-            document_repository=document_repo, document_chunk_repository=chunk_repo
-        )
-
-        document_processor = DocumentProcessor(
-            document_service=document_service,
-            vector_repository=vector_repo,
-            text_chunker=text_chunker,
-            openai_client=openai_client,
-            s3_service=s3_service,
-            document_repository=document_repo,
-        )
 
         file_upload = await file_upload_repo.find_by_id(UUID(file_upload_id))
         if not file_upload:
@@ -174,22 +140,73 @@ async def _process_document_async(
                 f"DocumentProcessingJob não encontrado: {processing_job_id}"
             )
 
-        document = await document_processor.process_uploaded_document(
-            file_upload, processing_job
-        )
+    # Process document with a fresh session for the main processing
+    try:
+        async with get_async_session() as session:
+            document_repo = PostgresDocumentRepository(session)
+            vector_repo = PostgresVectorRepository(session)
+            chunk_repo = PostgresDocumentChunkRepository(session)
+            job_repo = PostgresDocumentProcessingJobRepository(session)
+            
+            s3_service = S3Service(
+                bucket=settings.s3_bucket,
+                region=settings.s3_region,
+                access_key=settings.aws_access_key,
+                secret_key=settings.aws_secret_key,
+                endpoint_url=settings.s3_endpoint_url,
+                public_endpoint_url=getattr(
+                    settings, "s3_public_endpoint_url", settings.s3_endpoint_url
+                ),
+            )
+            openai_client = OpenAIClient()
+            text_chunker = TextChunker(
+                chunk_size=getattr(settings, "chunk_size", 500),
+                chunk_overlap=getattr(settings, "chunk_overlap", 50),
+                use_contextual_retrieval=getattr(
+                    settings, "use_contextual_retrieval", True
+                ),
+            )
 
-        end_time = datetime.utcnow()
-        processing_time = (end_time - start_time).total_seconds()
+            document_service = DocumentService(
+                document_repository=document_repo, document_chunk_repository=chunk_repo
+            )
 
-        processing_job.processing_time_seconds = int(processing_time)
-        await job_repo.save(processing_job)
+            document_processor = DocumentProcessor(
+                document_service=document_service,
+                vector_repository=vector_repo,
+                text_chunker=text_chunker,
+                openai_client=openai_client,
+                s3_service=s3_service,
+                document_repository=document_repo,
+            )
 
-        return {
-            "document_id": str(document.id),
-            "processing_time": processing_time,
-            "chunks_created": processing_job.total_chunks,
-            "embeddings_generated": processing_job.chunks_processed,
-        }
+            # Reload processing job in this session to avoid detached instance issues
+            processing_job = await job_repo.find_by_id(UUID(processing_job_id))
+            if not processing_job:
+                raise ValueError(
+                    f"DocumentProcessingJob não encontrado: {processing_job_id}"
+                )
+
+            document = await document_processor.process_uploaded_document(
+                file_upload, processing_job
+            )
+
+            end_time = datetime.now(timezone.utc)
+            processing_time = (end_time - start_time).total_seconds()
+
+            processing_job.processing_time_seconds = int(processing_time)
+            await job_repo.save(processing_job)
+
+            return {
+                "document_id": str(document.id),
+                "processing_time": processing_time,
+                "chunks_created": processing_job.total_chunks,
+                "embeddings_generated": processing_job.chunks_processed,
+            }
+    except Exception as e:
+        # Update job status with error using a separate session
+        await _update_job_with_error(processing_job_id, str(e))
+        raise
 
 
 async def _update_job_with_error(processing_job_id: str, error_message: str) -> None:
@@ -269,7 +286,7 @@ async def _cleanup_s3_files(older_than_hours: int = 24) -> Dict[str, Any]:
         "task_type": "s3_cleanup",
         "deleted_count": deleted_count,
         "older_than_hours": older_than_hours,
-        "completed_at": datetime.utcnow().isoformat(),
+        "completed_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -291,7 +308,7 @@ async def _cleanup_orphaned_files(**kwargs) -> Dict[str, Any]:
     )
 
     async with get_async_session() as session:
-        cutoff_time = datetime.utcnow() - timedelta(hours=1)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=1)
 
         stmt = select(FileUploadModel).where(
             and_(
@@ -313,7 +330,7 @@ async def _cleanup_orphaned_files(**kwargs) -> Dict[str, Any]:
         return {
             "task_type": "orphaned_files",
             "deleted_count": deleted_count,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -354,5 +371,5 @@ async def _cleanup_expired_uploads(**kwargs) -> Dict[str, Any]:
         return {
             "task_type": "expired_uploads",
             "deleted_count": deleted_count,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }

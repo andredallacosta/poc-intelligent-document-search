@@ -129,7 +129,7 @@ class DocumentProcessingJob:
         self.duplicate_of = duplicate_of
         self.progress = 100
         self.current_step = "Documento duplicado detectado"
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self._calculate_processing_time()
 
     def mark_s3_file_deleted(self) -> None:

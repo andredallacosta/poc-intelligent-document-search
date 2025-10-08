@@ -143,17 +143,17 @@ class ChatSessionModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
-    ativo = Column(Boolean, default=True)
+    active = Column(Boolean, default=True)
     meta_data = Column("metadata", JSON, default=dict)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
-    atualizado_em = Column(
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
         Index("idx_session_user", "user_id"),
-        Index("idx_session_ativo", "ativo"),
-        Index("idx_session_created", "criado_em"),
+        Index("idx_session_active", "active"),
+        Index("idx_session_created", "created_at"),
     )
 
 
@@ -167,21 +167,21 @@ class MessageModel(Base):
         nullable=False,
     )
     role = Column(String(20), nullable=False)
-    conteudo = Column(Text, nullable=False)
-    tipo_mensagem = Column(String(50), default="text")
-    referencias_documento = Column(JSON, default=list)
-    tokens_usados = Column(Integer, default=0)
+    content = Column(Text, nullable=False)
+    message_type = Column(String(50), default="text")
+    document_references = Column(JSON, default=list)
+    tokens_used = Column(Integer, default=0)
     meta_data = Column("metadata", JSON, default=dict)
-    criado_em = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("idx_message_session", "session_id"),
-        Index("idx_message_created", "criado_em"),
+        Index("idx_message_created", "created_at"),
         Index("idx_message_role", "role"),
         CheckConstraint(
             "role IN ('user', 'assistant', 'system')", name="check_valid_role"
         ),
-        CheckConstraint("tokens_usados >= 0", name="check_tokens_positive"),
+        CheckConstraint("tokens_used >= 0", name="check_tokens_positive"),
     )
 
 
@@ -225,7 +225,7 @@ class DocumentProcessingJobModel(Base):
     content_hash_algorithm = Column(String(20), nullable=True)
     content_hash_value = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
-    meta_data = Column("metadata", JSON, default=dict)
+    meta_data = Column("meta_data", JSON, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
