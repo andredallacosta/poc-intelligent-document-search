@@ -13,7 +13,7 @@ from infrastructure.repositories.postgres_document_repository import (
     PostgresDocumentRepository,
     PostgresDocumentChunkRepository
 )
-from infrastructure.database.models import DocumentModel, DocumentoChunkModel
+from infrastructure.database.models import DocumentModel, DocumentChunkModel
 from tests.helpers.mock_factories import MockFactory
 
 
@@ -63,8 +63,8 @@ class TestPostgresDocumentRepository:
         result = await repository.save(sample_document)
         
         assert result == sample_document
-        assert existing_model.titulo == sample_document.title
-        assert existing_model.conteudo == sample_document.content
+        assert existing_model.title == sample_document.title
+        assert existing_model.content == sample_document.content
         mock_session.flush.assert_called_once()
 
     @pytest.mark.asyncio
@@ -380,8 +380,8 @@ class TestPostgresDocumentRepository:
         
         assert isinstance(result, Document)
         assert result.id == mock_model.id
-        assert result.title == mock_model.titulo
-        assert result.content == mock_model.conteudo
+        assert result.title == mock_model.title
+        assert result.content == mock_model.content
 
 
 class TestPostgresDocumentChunkRepository:
@@ -424,7 +424,7 @@ class TestPostgresDocumentChunkRepository:
 
     @pytest.mark.asyncio
     async def test_find_chunk_by_id_found(self, repository, mock_session, sample_chunk):
-        mock_model = Mock(spec=DocumentoChunkModel)
+        mock_model = Mock(spec=DocumentChunkModel)
         mock_session.execute.return_value.scalar_one_or_none.return_value = mock_model
         
         with patch.object(repository, '_model_to_entity', return_value=sample_chunk):
@@ -444,7 +444,7 @@ class TestPostgresDocumentChunkRepository:
 
     @pytest.mark.asyncio
     async def test_find_chunks_by_document_id_success(self, repository, mock_session, sample_chunk):
-        mock_model = Mock(spec=DocumentoChunkModel)
+        mock_model = Mock(spec=DocumentChunkModel)
         mock_result = Mock()
         mock_scalars = Mock()
         mock_scalars.all.return_value = [mock_model]
@@ -489,7 +489,7 @@ class TestPostgresDocumentChunkRepository:
         assert result is True
 
     def test_model_to_entity(self, repository):
-        mock_model = Mock(spec=DocumentoChunkModel)
+        mock_model = Mock(spec=DocumentChunkModel)
         mock_model.id = uuid4()
         mock_model.documento_id = uuid4()
         mock_model.conteudo = "Test chunk content"
@@ -502,6 +502,6 @@ class TestPostgresDocumentChunkRepository:
         
         assert isinstance(result, DocumentChunk)
         assert result.id == mock_model.id
-        assert result.document_id == mock_model.documento_id
-        assert result.content == mock_model.conteudo
-        assert result.chunk_index == mock_model.indice_chunk
+        assert result.document_id == mock_model.document_id
+        assert result.content == mock_model.content
+        assert result.chunk_index == mock_model.chunk_index

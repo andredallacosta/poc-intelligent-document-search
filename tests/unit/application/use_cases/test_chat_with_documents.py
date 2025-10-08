@@ -7,6 +7,7 @@ from application.dto.chat_dto import ChatRequestDTO, ChatResponseDTO
 from application.interfaces.llm_service import LLMServiceInterface
 from domain.services.chat_service import ChatService
 from domain.services.search_service import SearchService
+from domain.services.token_limit_service import TokenLimitService
 from domain.entities.chat_session import ChatSession
 from domain.entities.message import Message, MessageRole
 from domain.value_objects.embedding import Embedding
@@ -27,11 +28,16 @@ class TestChatWithDocumentsUseCase:
         return Mock(spec=LLMServiceInterface)
     
     @pytest.fixture
-    def use_case(self, mock_chat_service, mock_search_service, mock_llm_service):
+    def mock_token_limit_service(self):
+        return Mock(spec=TokenLimitService)
+    
+    @pytest.fixture
+    def use_case(self, mock_chat_service, mock_search_service, mock_llm_service, mock_token_limit_service):
         return ChatWithDocumentsUseCase(
             chat_service=mock_chat_service,
             search_service=mock_search_service,
-            llm_service=mock_llm_service
+            llm_service=mock_llm_service,
+            token_limit_service=mock_token_limit_service
         )
     
     @pytest.fixture

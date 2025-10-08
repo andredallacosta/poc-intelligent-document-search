@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     cors_methods: list = Field(default=["*"], env="CORS_METHODS")
     cors_headers: list = Field(default=["*"], env="CORS_HEADERS")
 
+    # JWT Authentication
+    jwt_secret: str = Field(env="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
+    jwt_expiry_days: int = Field(default=3, env="JWT_EXPIRY_DAYS")
+    
+    # Google OAuth2
+    google_client_id: Optional[str] = Field(default=None, env="GOOGLE_CLIENT_ID")
+
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     sqlalchemy_log_level: str = Field(default="WARNING", env="SQLALCHEMY_LOG_LEVEL")

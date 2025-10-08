@@ -11,7 +11,7 @@ from domain.exceptions.document_exceptions import DocumentProcessingError
 from domain.repositories.vector_repository import SearchResult
 from domain.value_objects.embedding import Embedding
 from infrastructure.repositories.postgres_vector_repository import PostgresVectorRepository
-from infrastructure.database.models import DocumentoEmbeddingModel, DocumentoChunkModel
+from infrastructure.database.models import DocumentEmbeddingModel, DocumentChunkModel
 from tests.helpers.mock_factories import MockFactory
 
 
@@ -119,7 +119,7 @@ class TestPostgresVectorRepository:
     @pytest.mark.asyncio
     async def test_get_embedding_by_chunk_id_found(self, repository, mock_session, sample_embedding):
         chunk_id = uuid4()
-        mock_model = Mock(spec=DocumentoEmbeddingModel)
+        mock_model = Mock(spec=DocumentEmbeddingModel)
         mock_model.embedding = [0.1] * 1536
         
         mock_result = Mock()

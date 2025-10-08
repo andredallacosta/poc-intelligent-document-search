@@ -156,7 +156,7 @@ class PostgresMessageRepository(MessageRepository):
     ) -> List[Message]:
         """Busca mensagens de uma sessão"""
         stmt = select(MessageModel).where(MessageModel.session_id == session_id)
-        stmt = stmt.order_by(MessageModel.criado_em)
+        stmt = stmt.order_by(MessageModel.created_at)
 
         if limit:
             stmt = stmt.limit(limit)

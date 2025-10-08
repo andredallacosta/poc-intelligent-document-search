@@ -205,7 +205,7 @@ class TestPostgresSessionRepository:
         
         assert isinstance(result, ChatSession)
         assert result.id == mock_model.id
-        assert result.is_active == mock_model.ativo
+        assert result.is_active == mock_model.active
         assert result.metadata == mock_model.meta_data
 
 
@@ -322,15 +322,15 @@ class TestPostgresMessageRepository:
         mock_model.id = uuid4()
         mock_model.session_id = uuid4()
         mock_model.role = MessageRole.USER.value
-        mock_model.conteudo = "Test message"
-        mock_model.tipo_mensagem = MessageType.TEXT.value
-        mock_model.referencias_documento = []
+        mock_model.content = "Test message"
+        mock_model.message_type = MessageType.TEXT.value
+        mock_model.document_references = []
         mock_model.meta_data = {}
-        mock_model.criado_em = datetime.utcnow()
+        mock_model.created_at = datetime.utcnow()
         
         result = repository._model_to_entity(mock_model)
         
         assert isinstance(result, Message)
         assert result.id == mock_model.id
         assert result.session_id == mock_model.session_id
-        assert result.content == mock_model.conteudo
+        assert result.content == mock_model.content

@@ -94,3 +94,13 @@ class UserRepository(ABC):
     async def count_anonymous(self) -> int:
         """Counts anonymous users"""
         pass
+
+    @abstractmethod
+    async def find_by_google_id(self, google_id: str) -> Optional[User]:
+        """Finds user by Google ID"""
+        pass
+
+    @abstractmethod
+    async def find_by_invitation_token(self, token: str) -> Optional[User]:
+        """Finds user by invitation token"""
+        pass

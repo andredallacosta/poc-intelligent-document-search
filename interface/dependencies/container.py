@@ -13,15 +13,18 @@ from application.use_cases.get_document_status import (
 from application.use_cases.process_uploaded_document import (
     ProcessUploadedDocumentUseCase,
 )
+from application.use_cases.authentication_use_case import AuthenticationUseCase
 from application.use_cases.token_management_use_cases import (
     AddExtraCreditsUseCase,
     GetTokenStatusUseCase,
     UpdateMonthlyLimitUseCase,
 )
+from application.use_cases.user_management_use_case import UserManagementUseCase
 from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
+from domain.services.authentication_service import AuthenticationService
 from domain.services.threshold_service import ThresholdService
 from domain.services.token_limit_service import TokenLimitService
 from infrastructure.config.settings import settings
@@ -518,3 +521,34 @@ async def get_update_limit_use_case(
 ) -> UpdateMonthlyLimitUseCase:
     """Dependency for UpdateMonthlyLimitUseCase"""
     return UpdateMonthlyLimitUseCase(token_limit_service)
+
+
+# === AUTHENTICATION DEPENDENCIES ===
+
+
+async def get_authentication_service(
+    user_repo: PostgresUserRepository = Depends(get_postgres_user_repository),
+) -> AuthenticationService:
+    """Dependency for AuthenticationService"""
+    return AuthenticationService(
+        user_repository=user_repo,
+        jwt_secret=settings.jwt_secret,
+        jwt_algorithm=settings.jwt_algorithm,
+        jwt_expiry_days=settings.jwt_expiry_days,
+        google_client_id=settings.google_client_id,
+    )
+
+
+async def get_authentication_use_case(
+    auth_service: AuthenticationService = Depends(get_authentication_service),
+) -> AuthenticationUseCase:
+    """Dependency for AuthenticationUseCase"""
+    return AuthenticationUseCase(auth_service)
+
+
+async def get_user_management_use_case(
+    user_repo: PostgresUserRepository = Depends(get_postgres_user_repository),
+    auth_service: AuthenticationService = Depends(get_authentication_service),
+) -> UserManagementUseCase:
+    """Dependency for UserManagementUseCase"""
+    return UserManagementUseCase(user_repo, auth_service)

@@ -1,8 +1,9 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from application.dto.chat_dto import ChatRequestDTO
+from domain.entities.user import User
 from domain.exceptions.chat_exceptions import (
     ChatError,
     InvalidMessageError,
@@ -13,6 +14,8 @@ from domain.exceptions.token_exceptions import (
     MunicipalityInactiveError,
     TokenLimitExceededError,
 )
+from domain.value_objects.municipality_id import MunicipalityId
+from interface.middleware.auth_middleware import get_authenticated_user, get_current_municipality
 from interface.middleware.token_limit_middleware import TokenLimitCheck
 from interface.schemas.chat import ChatRequest, ChatResponse, ErrorResponse
 
@@ -40,7 +43,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 )
 async def ask_question(
     request: ChatRequest,
-    municipality_id: TokenLimitCheck,  # NEW DEPENDENCY - checks tokens automatically
+    current_user: User = Depends(get_authenticated_user),
+    municipality_id: MunicipalityId = Depends(get_current_municipality),
+    # municipality_id: TokenLimitCheck,  # TODO: Reintegrar controle de tokens
 ):
     try:
         logger.info(f"Processing chat request: '{request.message[:50]}...'")

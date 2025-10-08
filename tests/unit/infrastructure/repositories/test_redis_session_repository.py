@@ -7,7 +7,7 @@ import json
 from domain.entities.chat_session import ChatSession
 from domain.entities.message import Message, MessageRole, DocumentReference
 from domain.exceptions.chat_exceptions import SessionNotFoundError
-from domain.value_objects.usuario_id import UsuarioId
+from domain.value_objects.user_id import UserId
 from infrastructure.repositories.redis_session_repository import (
     RedisSessionRepository,
     RedisMessageRepository
