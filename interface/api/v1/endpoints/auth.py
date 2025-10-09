@@ -3,7 +3,7 @@ from typing import List
 from urllib.parse import urlencode
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from application.dto.auth_dto import (
     ActivateUserDTO,
@@ -17,13 +17,16 @@ from domain.exceptions.auth_exceptions import (
     AuthenticationError,
     InvalidCredentialsError,
     InvalidTokenError,
+    RateLimitExceededError,
     UserInactiveError,
     UserNotFoundError,
 )
+from domain.services.rate_limit_service import RateLimitService
 from infrastructure.config.settings import settings
 from interface.dependencies.container import (
     get_authentication_use_case,
     get_user_management_use_case,
+    get_rate_limit_service,
 )
 from interface.middleware.auth_middleware import get_authenticated_user
 from interface.schemas.auth_schemas import (
@@ -43,6 +46,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
+def _get_client_ip(request: Request) -> str:
+    """Obtém IP real do cliente (considerando proxies)"""
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+    
+    return request.client.host if request.client else "unknown"
+
+
 @router.post(
     "/login",
     response_model=LoginResponse,
@@ -50,16 +66,29 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
         400: {"model": ErrorResponse, "description": "Credenciais inválidas"},
         403: {"model": ErrorResponse, "description": "Usuário inativo"},
         404: {"model": ErrorResponse, "description": "Usuário não encontrado"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Erro interno"},
     },
     summary="Login com email e senha",
     description="Autentica usuário com email e senha, retorna JWT token",
 )
 async def login_email_password(
+    http_request: Request,
     request: LoginEmailPasswordRequest,
     auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    rate_limit_service: RateLimitService = Depends(get_rate_limit_service),
 ):
     try:
+        # Rate limiting por IP e por email
+        client_ip = _get_client_ip(http_request)
+        await rate_limit_service.check_multiple_limits(
+            endpoint="/api/v1/auth/login",
+            checks={
+                "per_ip": client_ip,
+                "per_email": request.email
+            }
+        )
+        
         login_dto = LoginEmailPasswordDTO(
             email=request.email, password=request.password
         )
@@ -91,6 +120,17 @@ async def login_email_password(
             status_code=403,
             detail={"error": "user_inactive", "message": str(e), "code": e.error_code},
         )
+    except RateLimitExceededError as e:
+        logger.warning(f"Rate limit exceeded for login: {e}")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": str(e),
+                "code": "RATE_LIMIT_EXCEEDED",
+            },
+            headers={"Retry-After": "60"}
+        )
     except AuthenticationError as e:
         raise HTTPException(
             status_code=500,
@@ -106,38 +146,62 @@ async def login_email_password(
     "/google",
     response_model=GoogleAuthUrlResponse,
     responses={
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Google OAuth2 não configurado"},
     },
     summary="Obter URL de autenticação Google",
     description="Retorna URL para iniciar fluxo de autenticação Google OAuth2",
 )
-async def get_google_auth_url():
+async def get_google_auth_url(
+    http_request: Request,
+    rate_limit_service: RateLimitService = Depends(get_rate_limit_service),
+):
     """Gera URL para autenticação Google OAuth2"""
-    if not settings.google_client_id:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "oauth2_not_configured",
-                "message": "Google OAuth2 não configurado no servidor",
-                "code": "OAUTH2_NOT_CONFIGURED",
-            },
+    try:
+        # Rate limiting por IP
+        client_ip = _get_client_ip(http_request)
+        await rate_limit_service.check_multiple_limits(
+            endpoint="/api/v1/auth/google",
+            checks={"per_ip": client_ip}
         )
+        
+        if not settings.google_client_id:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "oauth2_not_configured",
+                    "message": "Google OAuth2 não configurado no servidor",
+                    "code": "OAUTH2_NOT_CONFIGURED",
+                },
+            )
 
-    # Parâmetros para o Google OAuth2
-    params = {
-        "client_id": settings.google_client_id,
-        "redirect_uri": settings.google_redirect_uri,
-        "scope": "openid email profile",
-        "response_type": "code",
-        "access_type": "offline",
-        "prompt": "consent",
-    }
+        # Parâmetros para o Google OAuth2
+        params = {
+            "client_id": settings.google_client_id,
+            "redirect_uri": settings.google_redirect_uri,
+            "scope": "openid email profile",
+            "response_type": "code",
+            "access_type": "offline",
+            "prompt": "consent",
+        }
 
-    google_auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
+        google_auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
 
-    return GoogleAuthUrlResponse(
-        auth_url=google_auth_url, redirect_uri=settings.google_redirect_uri
-    )
+        return GoogleAuthUrlResponse(
+            auth_url=google_auth_url, redirect_uri=settings.google_redirect_uri
+        )
+        
+    except RateLimitExceededError as e:
+        logger.warning(f"Rate limit exceeded for Google auth URL: {e}")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": str(e),
+                "code": "RATE_LIMIT_EXCEEDED",
+            },
+            headers={"Retry-After": "60"}
+        )
 
 
 @router.get(
@@ -147,6 +211,7 @@ async def get_google_auth_url():
         400: {"model": ErrorResponse, "description": "Código de autorização inválido"},
         403: {"model": ErrorResponse, "description": "Usuário inativo"},
         404: {"model": ErrorResponse, "description": "Usuário não encontrado"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Erro interno"},
     },
     summary="Callback do Google OAuth2",
@@ -154,10 +219,19 @@ async def get_google_auth_url():
 )
 async def google_oauth2_callback(
     code: str,
+    http_request: Request,
     auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    rate_limit_service: RateLimitService = Depends(get_rate_limit_service),
 ):
     """Processa callback do Google OAuth2"""
     try:
+        # Rate limiting por IP
+        client_ip = _get_client_ip(http_request)
+        await rate_limit_service.check_multiple_limits(
+            endpoint="/api/v1/auth/google",
+            checks={"per_ip": client_ip}
+        )
+        
         # Troca o código por um token de acesso
         login_dto = LoginGoogleOAuth2DTO(google_token=code)
         response = await auth_use_case.login_google_oauth2(login_dto)
@@ -187,6 +261,17 @@ async def google_oauth2_callback(
             status_code=403,
             detail={"error": "user_inactive", "message": str(e), "code": e.error_code},
         )
+    except RateLimitExceededError as e:
+        logger.warning(f"Rate limit exceeded for Google callback: {e}")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": str(e),
+                "code": "RATE_LIMIT_EXCEEDED",
+            },
+            headers={"Retry-After": "60"}
+        )
     except AuthenticationError as e:
         raise HTTPException(
             status_code=500,
@@ -205,6 +290,7 @@ async def google_oauth2_callback(
         400: {"model": ErrorResponse, "description": "Token Google inválido"},
         403: {"model": ErrorResponse, "description": "Usuário inativo"},
         404: {"model": ErrorResponse, "description": "Usuário não encontrado"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
         500: {"model": ErrorResponse, "description": "Erro interno"},
     },
     summary="Login com Google ID Token",
@@ -212,10 +298,19 @@ async def google_oauth2_callback(
 )
 async def login_google_oauth2(
     request: LoginGoogleOAuth2Request,
+    http_request: Request,
     auth_use_case: AuthenticationUseCase = Depends(get_authentication_use_case),
+    rate_limit_service: RateLimitService = Depends(get_rate_limit_service),
 ):
     """Login direto com Google ID Token (para SPAs)"""
     try:
+        # Rate limiting por IP
+        client_ip = _get_client_ip(http_request)
+        await rate_limit_service.check_multiple_limits(
+            endpoint="/api/v1/auth/google",
+            checks={"per_ip": client_ip}
+        )
+        
         login_dto = LoginGoogleOAuth2DTO(google_token=request.google_token)
 
         response = await auth_use_case.login_google_oauth2(login_dto)
@@ -240,6 +335,17 @@ async def login_google_oauth2(
         raise HTTPException(
             status_code=403,
             detail={"error": "user_inactive", "message": str(e), "code": e.error_code},
+        )
+    except RateLimitExceededError as e:
+        logger.warning(f"Rate limit exceeded for Google token login: {e}")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": str(e),
+                "code": "RATE_LIMIT_EXCEEDED",
+            },
+            headers={"Retry-After": "60"}
         )
     except AuthenticationError as e:
         raise HTTPException(

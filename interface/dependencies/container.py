@@ -27,6 +27,7 @@ from domain.services.document_service import DocumentService
 from domain.services.search_service import SearchService
 from domain.services.threshold_service import ThresholdService
 from domain.services.token_limit_service import TokenLimitService
+from domain.services.rate_limit_service import RateLimitService
 from infrastructure.config.settings import settings
 from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
@@ -241,6 +242,15 @@ class Container:
             period_repo=period_repo,
             lock_service=lock_service,
         )
+
+    @lru_cache(maxsize=1)
+    def get_rate_limit_service(self) -> RateLimitService:
+        """Rate limit service using existing Redis"""
+        if "rate_limit_service" not in self._instances:
+            self._instances["rate_limit_service"] = RateLimitService(
+                redis_client=self.get_redis_client()
+            )
+        return self._instances["rate_limit_service"]
 
     async def close_connections(self):
         """Fecha todas as conexões"""
@@ -562,3 +572,8 @@ async def get_user_management_use_case(
 ) -> UserManagementUseCase:
     """Dependency for UserManagementUseCase"""
     return UserManagementUseCase(user_repo, auth_service)
+
+
+def get_rate_limit_service() -> RateLimitService:
+    """Dependency for RateLimitService"""
+    return container.get_rate_limit_service()
