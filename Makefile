@@ -42,24 +42,24 @@ clean: ## Clean build artifacts and cache
 lint: ## Run all linting tools
 	@echo "🔍 Running linting tools..."
 	@echo "  → flake8..."
-	flake8 interface/ domain/ infrastructure/ application/ shared/
+	flake8
 	@echo "  → black (check only)..."
-	black --check interface/ domain/ infrastructure/ application/ shared/
+	black --check
 	@echo "  → isort (check only)..."
-	isort --check-only interface/ domain/ infrastructure/ application/ shared/
+	isort --check-only
 	@echo "✅ Linting completed!"
 
 format: ## Format code with black and isort
 	@echo "🎨 Formatting code..."
 	@echo "  → black..."
-	black interface/ domain/ infrastructure/ application/ shared/
+	black .
 	@echo "  → isort..."
-	isort interface/ domain/ infrastructure/ application/ shared/
+	isort .
 	@echo "✅ Code formatted!"
 
 type-check: ## Run mypy type checking
 	@echo "🔍 Running type checks..."
-	mypy interface/ domain/ infrastructure/ application/ shared/
+	mypy
 	@echo "✅ Type checking completed!"
 
 check: lint type-check ## Run all code quality checks

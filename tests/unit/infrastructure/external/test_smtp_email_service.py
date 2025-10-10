@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from email.mime.multipart import MIMEMultipart
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from domain.exceptions.auth_exceptions import EmailDeliveryError
 from infrastructure.external.smtp_email_service import SMTPEmailService
@@ -30,7 +31,6 @@ class TestSMTPEmailService:
         # Arrange
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_invitation_email(
             email="user@example.com",
@@ -39,14 +39,12 @@ class TestSMTPEmailService:
             invited_by_name="Admin User",
             municipality_name="Prefeitura de São Paulo",
         )
-        
         # Assert
         assert result is True
         mock_smtp.assert_called_once_with("smtp.gmail.com", 587)
         mock_server.starttls.assert_called_once()
         mock_server.login.assert_called_once_with("test@example.com", "password123")
         mock_server.send_message.assert_called_once()
-        
         # Verifica se a mensagem foi criada corretamente
         call_args = mock_server.send_message.call_args[0][0]
         assert isinstance(call_args, MIMEMultipart)
@@ -56,12 +54,13 @@ class TestSMTPEmailService:
 
     @pytest.mark.asyncio
     @patch("infrastructure.external.smtp_email_service.smtplib.SMTP")
-    async def test_send_invitation_email_without_municipality(self, mock_smtp, email_service):
+    async def test_send_invitation_email_without_municipality(
+        self, mock_smtp, email_service
+    ):
         """Testa envio de email de convite sem prefeitura"""
         # Arrange
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_invitation_email(
             email="user@example.com",
@@ -69,7 +68,6 @@ class TestSMTPEmailService:
             invitation_token="abc123",
             invited_by_name="Admin User",
         )
-        
         # Assert
         assert result is True
         call_args = mock_server.send_message.call_args[0][0]
@@ -82,14 +80,12 @@ class TestSMTPEmailService:
         # Arrange
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_password_reset_email(
             email="user@example.com",
             full_name="João Silva",
             reset_token="reset123",
         )
-        
         # Assert
         assert result is True
         call_args = mock_server.send_message.call_args[0][0]
@@ -102,13 +98,11 @@ class TestSMTPEmailService:
         # Arrange
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_account_activated_email(
             email="user@example.com",
             full_name="João Silva",
         )
-        
         # Assert
         assert result is True
         call_args = mock_server.send_message.call_args[0][0]
@@ -121,14 +115,12 @@ class TestSMTPEmailService:
         # Arrange
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_welcome_email(
             email="user@example.com",
             full_name="João Silva",
             municipality_name="Prefeitura de São Paulo",
         )
-        
         # Assert
         assert result is True
         call_args = mock_server.send_message.call_args[0][0]
@@ -141,7 +133,6 @@ class TestSMTPEmailService:
         """Testa falha na conexão SMTP"""
         # Arrange
         mock_smtp.side_effect = Exception("Connection failed")
-        
         # Act & Assert
         with pytest.raises(EmailDeliveryError) as exc_info:
             await email_service.send_invitation_email(
@@ -150,7 +141,6 @@ class TestSMTPEmailService:
                 invitation_token="abc123",
                 invited_by_name="Admin User",
             )
-        
         assert "Falha ao enviar email" in str(exc_info.value)
         assert "Connection failed" in str(exc_info.value)
 
@@ -162,7 +152,6 @@ class TestSMTPEmailService:
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
         mock_server.login.side_effect = Exception("Authentication failed")
-        
         # Act & Assert
         with pytest.raises(EmailDeliveryError) as exc_info:
             await email_service.send_invitation_email(
@@ -171,7 +160,6 @@ class TestSMTPEmailService:
                 invitation_token="abc123",
                 invited_by_name="Admin User",
             )
-        
         assert "Falha ao enviar email" in str(exc_info.value)
         assert "Authentication failed" in str(exc_info.value)
 
@@ -190,10 +178,8 @@ class TestSMTPEmailService:
             from_name="Test System",
             base_url="http://localhost:8000",
         )
-        
         mock_server = MagicMock()
         mock_smtp.return_value.__enter__.return_value = mock_server
-        
         # Act
         result = await email_service.send_invitation_email(
             email="user@example.com",
@@ -201,7 +187,6 @@ class TestSMTPEmailService:
             invitation_token="abc123",
             invited_by_name="Admin User",
         )
-        
         # Assert
         assert result is True
         mock_server.starttls.assert_not_called()  # TLS não deve ser chamado
@@ -216,7 +201,6 @@ class TestSMTPEmailService:
             activation_url="http://localhost:8000/auth/activate?token=abc123",
             municipality_name="Prefeitura de São Paulo",
         )
-        
         # Assert
         assert "João Silva" in html_content
         assert "Admin User" in html_content
@@ -234,7 +218,6 @@ class TestSMTPEmailService:
             activation_url="http://localhost:8000/auth/activate?token=abc123",
             municipality_name="Prefeitura de São Paulo",
         )
-        
         # Assert
         assert "João Silva" in text_content
         assert "Admin User" in text_content
@@ -249,7 +232,6 @@ class TestSMTPEmailService:
             full_name="João Silva",
             reset_url="http://localhost:8000/auth/reset?token=reset123",
         )
-        
         # Assert
         assert "João Silva" in html_content
         assert "http://localhost:8000/auth/reset?token=reset123" in html_content
@@ -263,7 +245,6 @@ class TestSMTPEmailService:
             full_name="João Silva",
             municipality_name="Prefeitura de São Paulo",
         )
-        
         # Assert
         assert "João Silva" in html_content
         assert "da Prefeitura de São Paulo" in html_content
@@ -283,7 +264,6 @@ class TestSMTPEmailService:
             from_name="Custom System",
             base_url="https://custom.example.com",
         )
-        
         # Assert
         assert service._smtp_host == "custom.smtp.com"
         assert service._smtp_port == 465
@@ -303,6 +283,7 @@ class TestSMTPEmailService:
             smtp_username="test@example.com",
             smtp_password="password123",
         )
-        
         # Assert
-        assert service._from_email == "test@example.com"  # Deve usar smtp_username como padrão
+        assert (
+            service._from_email == "test@example.com"
+        )  # Deve usar smtp_username como padrão

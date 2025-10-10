@@ -1,17 +1,13 @@
-import pytest
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
-from application.dto.auth_dto import (
-    CreateUserDTO,
-    ActivateUserDTO,
-    UserListDTO
-)
+import pytest
+
+from application.dto.auth_dto import ActivateUserDTO, CreateUserDTO, UserListDTO
 from application.use_cases.user_management_use_case import UserManagementUseCase
 from domain.entities.user import User
-from domain.exceptions.auth_exceptions import UserNotFoundError, EmailDeliveryError
-from domain.exceptions.business_exceptions import BusinessRuleViolationError
+from domain.exceptions.auth_exceptions import EmailDeliveryError, UserNotFoundError
 from domain.repositories.user_repository import UserRepository
 from domain.services.authentication_service import AuthenticationService
 from domain.services.email_service import EmailService
@@ -40,12 +36,14 @@ class TestUserManagementUseCase:
         return Mock(spec=EmailService)
 
     @pytest.fixture
-    def user_management_use_case(self, mock_user_repo, mock_auth_service, mock_email_service):
+    def user_management_use_case(
+        self, mock_user_repo, mock_auth_service, mock_email_service
+    ):
         """Instância do UserManagementUseCase para testes"""
         return UserManagementUseCase(
             user_repo=mock_user_repo,
             auth_service=mock_auth_service,
-            email_service=mock_email_service
+            email_service=mock_email_service,
         )
 
     @pytest.fixture
@@ -63,7 +61,7 @@ class TestUserManagementUseCase:
             auth_provider=AuthProvider.EMAIL_PASSWORD,
             is_active=True,
             email_verified=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
     @pytest.fixture
@@ -83,12 +81,17 @@ class TestUserManagementUseCase:
             invited_by=UserId(uuid4()),
             auth_provider=AuthProvider.EMAIL_PASSWORD,
             password_hash="temp_hash",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
     @pytest.mark.asyncio
     async def test_create_user_with_invitation_success(
-        self, user_management_use_case, mock_user_repo, mock_auth_service, mock_email_service, admin_user
+        self,
+        user_management_use_case,
+        mock_user_repo,
+        mock_auth_service,
+        mock_email_service,
+        admin_user,
     ):
         """Deve criar usuário com convite com sucesso"""
         # Arrange
@@ -98,15 +101,14 @@ class TestUserManagementUseCase:
             role="user",
             primary_municipality_id=admin_user.primary_municipality_id.value,
         )
-
         mock_user_repo.find_by_email = AsyncMock(return_value=None)
         mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
         mock_user_repo.save = AsyncMock()
         mock_email_service.send_invitation_email = AsyncMock()
-
         # Act
-        result = await user_management_use_case.create_user_with_invitation(request, admin_user)
-
+        result = await user_management_use_case.create_user_with_invitation(
+            request, admin_user
+        )
         # Assert
         assert isinstance(result, UserListDTO)
         assert result.email == "newuser@test.com"
@@ -115,7 +117,6 @@ class TestUserManagementUseCase:
         assert result.is_active is False
         assert result.email_verified is False
         assert result.invited_by_name == admin_user.full_name
-
         # Verifica chamadas
         mock_user_repo.find_by_email.assert_called_once_with("newuser@test.com")
         mock_user_repo.find_by_id.assert_called_once_with(admin_user.id)
@@ -132,53 +133,51 @@ class TestUserManagementUseCase:
             email="existing@test.com",
             full_name="Existing User",
             role="user",
-            primary_municipality_id=admin_user.primary_municipality_id.value
+            primary_municipality_id=admin_user.primary_municipality_id.value,
         )
-
         existing_user = User(
-            email="existing@test.com",
-            full_name="Existing User",
-            password_hash="hash"
+            email="existing@test.com", full_name="Existing User", password_hash="hash"
         )
         mock_user_repo.find_by_email = AsyncMock(return_value=existing_user)
-
         # Act & Assert
         with pytest.raises(ValueError, match="Email já cadastrado no sistema"):
-            await user_management_use_case.create_user_with_invitation(request, admin_user)
+            await user_management_use_case.create_user_with_invitation(
+                request, admin_user
+            )
 
     @pytest.mark.asyncio
     async def test_activate_user_account_email_password_success(
-        self, user_management_use_case, mock_user_repo, mock_auth_service, mock_email_service, invited_user
+        self,
+        user_management_use_case,
+        mock_user_repo,
+        mock_auth_service,
+        mock_email_service,
+        invited_user,
     ):
         """Deve ativar conta com email/senha com sucesso"""
         # Arrange
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="email_password",
-            password="new_password123"
+            password="new_password123",
         )
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
         mock_user_repo.save = AsyncMock()
         mock_auth_service.hash_password = Mock(return_value="hashed_new_password")
         mock_email_service.send_welcome_email = AsyncMock()
         mock_email_service.send_account_activated_email = AsyncMock()
-
         # Act
         result = await user_management_use_case.activate_user_account(request)
-
         # Assert
         assert isinstance(result, UserListDTO)
         assert result.email == invited_user.email
         assert result.is_active is True
         assert result.email_verified is True
-
         # Verifica que o usuário foi ativado corretamente
         assert invited_user.is_active is True
         assert invited_user.auth_provider == AuthProvider.EMAIL_PASSWORD
         assert invited_user.password_hash == "hashed_new_password"
         assert invited_user.invitation_token is None
-
         # Verifica chamadas
         mock_auth_service.hash_password.assert_called_once_with("new_password123")
         mock_user_repo.save.assert_called_once_with(invited_user)
@@ -187,46 +186,49 @@ class TestUserManagementUseCase:
 
     @pytest.mark.asyncio
     async def test_activate_user_account_google_oauth2_success(
-        self, user_management_use_case, mock_user_repo, mock_auth_service, mock_email_service, invited_user
+        self,
+        user_management_use_case,
+        mock_user_repo,
+        mock_auth_service,
+        mock_email_service,
+        invited_user,
     ):
         """Deve ativar conta com Google OAuth2 com sucesso"""
         # Arrange
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="google_oauth2",
-            google_token="google_token_123"
+            google_token="google_token_123",
         )
-
         google_user_info = {
             "sub": "google_user_123456",
             "email": invited_user.email,
-            "name": invited_user.full_name
+            "name": invited_user.full_name,
         }
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
         mock_user_repo.save = AsyncMock()
-        mock_auth_service._verify_google_token = AsyncMock(return_value=google_user_info)
+        mock_auth_service._verify_google_token = AsyncMock(
+            return_value=google_user_info
+        )
         mock_email_service.send_welcome_email = AsyncMock()
         mock_email_service.send_account_activated_email = AsyncMock()
-
         # Act
         result = await user_management_use_case.activate_user_account(request)
-
         # Assert
         assert isinstance(result, UserListDTO)
         assert result.email == invited_user.email
         assert result.is_active is True
         assert result.email_verified is True
-
         # Verifica que o usuário foi ativado corretamente
         assert invited_user.is_active is True
         assert invited_user.auth_provider == AuthProvider.GOOGLE_OAUTH2
         assert invited_user.google_id == "google_user_123456"
         assert invited_user.password_hash is None
         assert invited_user.invitation_token is None
-
         # Verifica chamadas
-        mock_auth_service._verify_google_token.assert_called_once_with("google_token_123")
+        mock_auth_service._verify_google_token.assert_called_once_with(
+            "google_token_123"
+        )
         mock_user_repo.save.assert_called_once_with(invited_user)
         mock_email_service.send_welcome_email.assert_called_once()
         mock_email_service.send_account_activated_email.assert_called_once()
@@ -240,11 +242,9 @@ class TestUserManagementUseCase:
         request = ActivateUserDTO(
             invitation_token="invalid_token",
             auth_provider="email_password",
-            password="password123"
+            password="password123",
         )
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=None)
-
         # Act & Assert
         with pytest.raises(UserNotFoundError, match="Token de convite inválido"):
             await user_management_use_case.activate_user_account(request)
@@ -258,13 +258,13 @@ class TestUserManagementUseCase:
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="email_password",
-            password=None
+            password=None,
         )
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
-
         # Act & Assert
-        with pytest.raises(ValueError, match="Senha obrigatória para ativação com email/senha"):
+        with pytest.raises(
+            ValueError, match="Senha obrigatória para ativação com email/senha"
+        ):
             await user_management_use_case.activate_user_account(request)
 
     @pytest.mark.asyncio
@@ -276,13 +276,13 @@ class TestUserManagementUseCase:
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="google_oauth2",
-            google_token=None
+            google_token=None,
         )
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
-
         # Act & Assert
-        with pytest.raises(ValueError, match="Token Google obrigatório para ativação com Google OAuth2"):
+        with pytest.raises(
+            ValueError, match="Token Google obrigatório para ativação com Google OAuth2"
+        ):
             await user_management_use_case.activate_user_account(request)
 
     @pytest.mark.asyncio
@@ -294,20 +294,21 @@ class TestUserManagementUseCase:
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="google_oauth2",
-            google_token="google_token_123"
+            google_token="google_token_123",
         )
-
         google_user_info = {
             "sub": "google_user_123456",
             "email": "different@email.com",  # Email diferente
-            "name": "Different User"
+            "name": "Different User",
         }
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
-        mock_auth_service._verify_google_token = AsyncMock(return_value=google_user_info)
-
+        mock_auth_service._verify_google_token = AsyncMock(
+            return_value=google_user_info
+        )
         # Act & Assert
-        with pytest.raises(ValueError, match="Email do token Google não confere com o email do convite"):
+        with pytest.raises(
+            ValueError, match="Email do token Google não confere com o email do convite"
+        ):
             await user_management_use_case.activate_user_account(request)
 
     @pytest.mark.asyncio
@@ -319,14 +320,12 @@ class TestUserManagementUseCase:
         request = ActivateUserDTO(
             invitation_token="invitation_token_123",
             auth_provider="google_oauth2",
-            google_token="invalid_google_token"
+            google_token="invalid_google_token",
         )
-
         mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
         mock_auth_service._verify_google_token = AsyncMock(
             side_effect=Exception("Invalid token")
         )
-
         # Act & Assert
         with pytest.raises(ValueError, match="Token Google inválido"):
             await user_management_use_case.activate_user_account(request)
@@ -340,12 +339,10 @@ class TestUserManagementUseCase:
         users = [admin_user]
         mock_user_repo.find_by_municipality_id = AsyncMock(return_value=users)
         municipality_id = admin_user.primary_municipality_id.value
-
         # Act
         result = await user_management_use_case.list_users_by_municipality(
             municipality_id, admin_user
         )
-
         # Assert
         assert isinstance(result, list)
         assert len(result) == 1
@@ -359,10 +356,9 @@ class TestUserManagementUseCase:
     ):
         """Deve desativar usuário com sucesso"""
         # Arrange
-        user_id = str(admin_user.id.value)
+        str(admin_user.id.value)
         mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
         mock_user_repo.save = AsyncMock()
-
         # Criar outro usuário para desativar (não pode desativar a si mesmo)
         other_user = User(
             id=UserId(uuid4()),
@@ -375,20 +371,17 @@ class TestUserManagementUseCase:
             auth_provider=AuthProvider.EMAIL_PASSWORD,
             is_active=True,
             email_verified=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
         mock_user_repo.find_by_id = AsyncMock(return_value=other_user)
-
         # Act
         result = await user_management_use_case.deactivate_user(
             other_user.id.value, admin_user
         )
-
         # Assert
         assert isinstance(result, UserListDTO)
         assert result.is_active is False
         assert other_user.is_active is False
-
         mock_user_repo.find_by_id.assert_called_once_with(UserId(other_user.id.value))
         mock_user_repo.save.assert_called_once_with(other_user)
 
@@ -398,18 +391,21 @@ class TestUserManagementUseCase:
     ):
         """Deve falhar se usuário não encontrado"""
         # Arrange
-        user_id = str(uuid4())
+        str(uuid4())
         # user_id já definido acima
         mock_user_repo.find_by_id = AsyncMock(return_value=None)
-
         # Act & Assert
         with pytest.raises(UserNotFoundError, match="Usuário não encontrado"):
             await user_management_use_case.deactivate_user(uuid4(), admin_user)
 
-
     @pytest.mark.asyncio
     async def test_email_delivery_error_handling(
-        self, user_management_use_case, mock_user_repo, mock_auth_service, mock_email_service, admin_user
+        self,
+        user_management_use_case,
+        mock_user_repo,
+        mock_auth_service,
+        mock_email_service,
+        admin_user,
     ):
         """Deve tratar erros de entrega de email"""
         # Arrange
@@ -419,15 +415,14 @@ class TestUserManagementUseCase:
             role="user",
             primary_municipality_id=admin_user.primary_municipality_id.value,
         )
-
         mock_user_repo.find_by_email = AsyncMock(return_value=None)
         mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
         mock_user_repo.save = AsyncMock()
         mock_email_service.send_invitation_email = AsyncMock(
             side_effect=EmailDeliveryError("Falha no envio de email")
         )
-
         # Act & Assert
         with pytest.raises(EmailDeliveryError, match="Falha no envio de email"):
-            await user_management_use_case.create_user_with_invitation(request, admin_user)
-
+            await user_management_use_case.create_user_with_invitation(
+                request, admin_user
+            )

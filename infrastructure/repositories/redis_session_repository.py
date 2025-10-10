@@ -87,7 +87,8 @@ class RedisSessionRepository(SessionRepository):
     async def delete_session(self, session_id: UUID) -> bool:
         try:
             key = f"{self._session_prefix}{session_id}"
-            return await self._redis_client.delete(key)
+            deleted_count = await self._redis_client.delete(key)
+            return deleted_count > 0
         except Exception:
             return False
 
