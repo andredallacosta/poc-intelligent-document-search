@@ -170,8 +170,13 @@ class User:
             self.municipality_ids.remove(municipality_id)
             self.updated_at = datetime.utcnow()
 
-    def activate_account(self, password_hash: Optional[str] = None) -> None:
-        """Ativa conta após convite"""
+    def activate_account(
+        self,
+        password_hash: Optional[str] = None,
+        auth_provider: Optional[AuthProvider] = None,
+        google_id: Optional[str] = None,
+    ) -> None:
+        """Ativa conta após convite com escolha de método de autenticação"""
         if not self.invitation_token:
             raise BusinessRuleViolationError("Usuário não tem convite pendente")
 
@@ -181,17 +186,30 @@ class User:
         ):
             raise BusinessRuleViolationError("Convite expirado")
 
-        if self.auth_provider == AuthProvider.EMAIL_PASSWORD and not password_hash:
-            raise BusinessRuleViolationError("Password obrigatório para ativação")
+        # Se auth_provider foi fornecido, atualiza (escolha do usuário na ativação)
+        if auth_provider:
+            self.auth_provider = auth_provider
+
+        # Validações baseadas no auth_provider final
+        if self.auth_provider == AuthProvider.EMAIL_PASSWORD:
+            if not password_hash:
+                raise BusinessRuleViolationError(
+                    "Password obrigatório para ativação com email/senha"
+                )
+            self.password_hash = password_hash
+            self.google_id = None  # Limpa google_id se existir
+        elif self.auth_provider == AuthProvider.GOOGLE_OAUTH2:
+            if not google_id:
+                raise BusinessRuleViolationError(
+                    "Google ID obrigatório para ativação com Google OAuth2"
+                )
+            self.google_id = google_id
+            self.password_hash = None  # Limpa password_hash se existir
 
         self.is_active = True
         self.email_verified = True
         self.invitation_token = None
         self.invitation_expires_at = None
-
-        if password_hash:
-            self.password_hash = password_hash
-
         self.updated_at = datetime.utcnow()
 
     def deactivate(self) -> None:
@@ -212,20 +230,22 @@ class User:
         role: UserRole,
         primary_municipality_id: MunicipalityId,
         invited_by: UserId,
-        auth_provider: AuthProvider = AuthProvider.EMAIL_PASSWORD,
+        auth_provider: Optional[AuthProvider] = None,
         google_id: Optional[str] = None,
     ) -> "User":
-        """Factory method para criar usuário com convite"""
+        """Factory method para criar usuário com convite (auth_provider será definido na ativação)"""
         import secrets
         from datetime import timedelta
 
         invitation_token = secrets.token_urlsafe(32)
         invitation_expires = datetime.utcnow() + timedelta(days=7)
 
-        # Para usuários com convite EMAIL_PASSWORD, definir um hash temporário
-        password_hash = None
-        if auth_provider == AuthProvider.EMAIL_PASSWORD:
-            password_hash = "temp_hash_to_be_replaced_on_activation"
+        # Usuário "neutro" - auth_provider será definido na ativação
+        # Usamos EMAIL_PASSWORD como padrão temporário, mas será sobrescrito
+        final_auth_provider = auth_provider or AuthProvider.EMAIL_PASSWORD
+
+        # Hash temporário que será substituído na ativação
+        password_hash = "temp_hash_to_be_replaced_on_activation"
 
         return cls(
             email=email,
@@ -233,7 +253,7 @@ class User:
             role=role,
             primary_municipality_id=primary_municipality_id,
             municipality_ids=[primary_municipality_id],
-            auth_provider=auth_provider,
+            auth_provider=final_auth_provider,
             google_id=google_id,
             password_hash=password_hash,
             is_active=False,

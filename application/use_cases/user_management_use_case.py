@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List, Optional
 from uuid import UUID
@@ -5,11 +6,13 @@ from uuid import UUID
 from application.dto.auth_dto import ActivateUserDTO, CreateUserDTO, UserListDTO
 from domain.entities.user import AuthProvider, User, UserRole
 from domain.exceptions.auth_exceptions import (
+    EmailDeliveryError,
     InsufficientPermissionsError,
     UserNotFoundError,
 )
 from domain.repositories.user_repository import UserRepository
 from domain.services.authentication_service import AuthenticationService
+from domain.services.email_service import EmailService
 from domain.value_objects.municipality_id import MunicipalityId
 from domain.value_objects.user_id import UserId
 
@@ -19,9 +22,15 @@ logger = logging.getLogger(__name__)
 class UserManagementUseCase:
     """Use case para gerenciamento de usuários"""
 
-    def __init__(self, user_repo: UserRepository, auth_service: AuthenticationService):
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        auth_service: AuthenticationService,
+        email_service: EmailService,
+    ):
         self._user_repo = user_repo
         self._auth_service = auth_service
+        self._email_service = email_service
 
     async def create_user_with_invitation(
         self, request: CreateUserDTO, created_by: User
@@ -38,14 +47,14 @@ class UserManagementUseCase:
         if existing_user:
             raise ValueError("Email já cadastrado no sistema")
 
-        # 3. Cria usuário com convite
+        # 3. Cria usuário com convite (auth_provider será definido na ativação)
         new_user = User.create_with_invitation(
             email=request.email,
             full_name=request.full_name,
             role=UserRole(request.role),
             primary_municipality_id=MunicipalityId(request.primary_municipality_id),
             invited_by=created_by.id,
-            auth_provider=AuthProvider(request.auth_provider),
+            # Não definimos auth_provider - usuário escolherá na ativação
         )
 
         # 4. Adiciona prefeituras extras (se aplicável)
@@ -57,6 +66,41 @@ class UserManagementUseCase:
         # 5. Salva no banco
         await self._user_repo.save(new_user)
 
+        # 6. Envia email de convite
+        try:
+            await self._email_service.send_invitation_email(
+                email=new_user.email,
+                full_name=new_user.full_name,
+                invitation_token=new_user.invitation_token,
+                invited_by_name=created_by.full_name,
+            )
+
+            logger.info(
+                "invitation_email_sent",
+                extra={
+                    "user_id": str(new_user.id.value),
+                    "email": new_user.email,
+                },
+            )
+        except EmailDeliveryError:
+            logger.error(
+                "invitation_email_delivery_failed",
+                extra={
+                    "user_id": str(new_user.id.value),
+                    "email": new_user.email,
+                },
+            )
+            raise
+        except Exception as e:
+            logger.warning(
+                "invitation_email_failed",
+                extra={
+                    "user_id": str(new_user.id.value),
+                    "email": new_user.email,
+                    "error": str(e),
+                },
+            )
+
         logger.info(
             "user_created_with_invitation",
             extra={
@@ -67,32 +111,112 @@ class UserManagementUseCase:
             },
         )
 
-        return self._user_to_dto(new_user)
+        return await self._user_to_dto(new_user)
 
     async def activate_user_account(self, request: ActivateUserDTO) -> UserListDTO:
-        """Ativa conta de usuário via token de convite"""
+        """Ativa conta de usuário via token de convite com escolha de auth_provider"""
 
         # 1. Busca usuário por token
         user = await self._user_repo.find_by_invitation_token(request.invitation_token)
         if not user:
             raise UserNotFoundError("Token de convite inválido")
 
-        # 2. Ativa conta
+        # 2. Processa ativação baseada no auth_provider escolhido
         password_hash = None
-        if request.password:
+        google_id = None
+        auth_provider = AuthProvider(request.auth_provider)
+
+        if auth_provider == AuthProvider.EMAIL_PASSWORD:
+            if not request.password:
+                raise ValueError("Senha obrigatória para ativação com email/senha")
             password_hash = self._auth_service.hash_password(request.password)
 
-        user.activate_account(password_hash)
+        elif auth_provider == AuthProvider.GOOGLE_OAUTH2:
+            if not request.google_token:
+                raise ValueError(
+                    "Token Google obrigatório para ativação com Google OAuth2"
+                )
+
+            # Valida token Google e extrai google_id
+            try:
+                google_user_info = await self._auth_service._verify_google_token(
+                    request.google_token
+                )
+                google_id = google_user_info["sub"]
+
+                # Verifica se o email do token Google confere com o email do convite
+                if google_user_info["email"].lower() != user.email.lower():
+                    raise ValueError(
+                        "Email do token Google não confere com o email do convite"
+                    )
+
+            except Exception as e:
+                raise ValueError(f"Token Google inválido: {str(e)}")
+
+        # 3. Ativa conta com o método escolhido
+        user.activate_account(
+            password_hash=password_hash,
+            auth_provider=auth_provider,
+            google_id=google_id,
+        )
 
         # 3. Salva no banco
         await self._user_repo.save(user)
+
+        # 4. Envia email de confirmação de ativação
+        try:
+            await self._email_service.send_account_activated_email(
+                email=user.email,
+                full_name=user.full_name,
+            )
+
+            logger.info(
+                "activation_confirmation_email_sent",
+                extra={
+                    "user_id": str(user.id.value),
+                    "email": user.email,
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "activation_confirmation_email_failed",
+                extra={
+                    "user_id": str(user.id.value),
+                    "email": user.email,
+                    "error": str(e),
+                },
+            )
+
+        # 5. Envia email de boas-vindas
+        try:
+            await self._email_service.send_welcome_email(
+                email=user.email,
+                full_name=user.full_name,
+            )
+
+            logger.info(
+                "welcome_email_sent",
+                extra={
+                    "user_id": str(user.id.value),
+                    "email": user.email,
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "welcome_email_failed",
+                extra={
+                    "user_id": str(user.id.value),
+                    "email": user.email,
+                    "error": str(e),
+                },
+            )
 
         logger.info(
             "user_account_activated",
             extra={"user_id": str(user.id.value), "email": user.email},
         )
 
-        return self._user_to_dto(user)
+        return await self._user_to_dto(user)
 
     async def list_users_by_municipality(
         self, municipality_id: UUID, requesting_user: User, limit: Optional[int] = None
@@ -112,7 +236,8 @@ class UserManagementUseCase:
             municipality_id_vo, limit=limit
         )
 
-        return [self._user_to_dto(user) for user in users]
+        user_dtos = await asyncio.gather(*[self._user_to_dto(user) for user in users])
+        return list(user_dtos)
 
     async def deactivate_user(
         self, user_id: UUID, requesting_user: User
@@ -146,7 +271,7 @@ class UserManagementUseCase:
             },
         )
 
-        return self._user_to_dto(user)
+        return await self._user_to_dto(user)
 
     def _validate_create_permissions(
         self, created_by: User, target_role: str, target_municipality_id: str
@@ -178,8 +303,14 @@ class UserManagementUseCase:
             "Usuários comuns não podem criar outros usuários"
         )
 
-    def _user_to_dto(self, user: User) -> UserListDTO:
+    async def _user_to_dto(self, user: User) -> UserListDTO:
         """Converte User para DTO"""
+        invited_by_name = None
+        if user.invited_by:
+            invited_by_user = await self._user_repo.find_by_id(user.invited_by)
+            if invited_by_user:
+                invited_by_name = invited_by_user.full_name
+
         return UserListDTO(
             id=str(user.id.value),
             email=user.email,
@@ -196,4 +327,5 @@ class UserManagementUseCase:
             last_login=user.last_login.isoformat() if user.last_login else None,
             created_at=user.created_at.isoformat(),
             has_pending_invitation=user.invitation_token is not None,
+            invited_by_name=invited_by_name,
         )

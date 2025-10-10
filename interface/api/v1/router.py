@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 
-from interface.api.v1.endpoints import admin, auth, chat, documents, queue, tokens
+from interface.api.v1.endpoints import (
+    admin,
+    auth,
+    chat,
+    documents,
+    queue,
+    tokens,
+    users,
+)
 
 api_router = APIRouter()
 
@@ -10,3 +18,4 @@ api_router.include_router(admin.router)
 api_router.include_router(documents.router)
 api_router.include_router(queue.router)
 api_router.include_router(tokens.router)
+api_router.include_router(users.router)

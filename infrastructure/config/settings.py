@@ -97,6 +97,20 @@ class Settings(BaseSettings):
         default="http://localhost:8000/auth/google/callback", env="GOOGLE_REDIRECT_URI"
     )
 
+    # Email/SMTP Configuration
+    smtp_host: str = Field(default="localhost", env="SMTP_HOST")
+    smtp_port: int = Field(default=587, env="SMTP_PORT")
+    smtp_username: str = Field(default="", env="SMTP_USERNAME")
+    smtp_password: str = Field(default="", env="SMTP_PASSWORD")
+    smtp_use_tls: bool = Field(default=True, env="SMTP_USE_TLS")
+    smtp_from_email: Optional[str] = Field(default=None, env="SMTP_FROM_EMAIL")
+    smtp_from_name: str = Field(
+        default="Sistema de Documentos Inteligentes", env="SMTP_FROM_NAME"
+    )
+
+    # Base URL for email links
+    base_url: str = Field(default="http://localhost:8000", env="BASE_URL")
+
     enable_metrics: bool = Field(default=True, env="ENABLE_METRICS")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     sqlalchemy_log_level: str = Field(default="WARNING", env="SQLALCHEMY_LOG_LEVEL")

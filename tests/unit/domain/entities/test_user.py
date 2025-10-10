@@ -326,8 +326,8 @@ class TestUserEntity:
         with pytest.raises(BusinessRuleViolationError, match="Não é possível remover prefeitura principal"):
             user.remove_municipality(municipality_id)
 
-    def test_activate_account_success(self):
-        """Deve ativar conta com sucesso"""
+    def test_activate_account_success_email_password(self):
+        """Deve ativar conta com email/senha com sucesso"""
         user = User(
             email="user@test.com",
             full_name="Test User",
@@ -339,13 +339,44 @@ class TestUserEntity:
             password_hash="temp_hash"  # Necessário para validação inicial
         )
         
-        user.activate_account("new_password_hash")
+        user.activate_account(
+            password_hash="new_password_hash",
+            auth_provider=AuthProvider.EMAIL_PASSWORD
+        )
         
         assert user.is_active is True
         assert user.email_verified is True
         assert user.invitation_token is None
         assert user.invitation_expires_at is None
         assert user.password_hash == "new_password_hash"
+        assert user.auth_provider == AuthProvider.EMAIL_PASSWORD
+        assert user.google_id is None
+
+    def test_activate_account_success_google_oauth2(self):
+        """Deve ativar conta com Google OAuth2 com sucesso"""
+        user = User(
+            email="user@gmail.com",
+            full_name="Google User",
+            is_active=False,
+            email_verified=False,
+            invitation_token="token123",
+            invitation_expires_at=datetime.utcnow() + timedelta(days=1),
+            auth_provider=AuthProvider.EMAIL_PASSWORD,  # Temporário
+            password_hash="temp_hash"  # Temporário
+        )
+        
+        user.activate_account(
+            google_id="google_123456",
+            auth_provider=AuthProvider.GOOGLE_OAUTH2
+        )
+        
+        assert user.is_active is True
+        assert user.email_verified is True
+        assert user.invitation_token is None
+        assert user.invitation_expires_at is None
+        assert user.auth_provider == AuthProvider.GOOGLE_OAUTH2
+        assert user.google_id == "google_123456"
+        assert user.password_hash is None  # Removido para Google OAuth2
 
     def test_activate_account_fail_no_invitation(self):
         """Deve falhar se não tem convite pendente"""
@@ -383,7 +414,48 @@ class TestUserEntity:
         )
         
         with pytest.raises(BusinessRuleViolationError, match="Password obrigatório para ativação"):
-            user.activate_account(None)
+            user.activate_account(
+                password_hash=None,
+                auth_provider=AuthProvider.EMAIL_PASSWORD
+            )
+
+    def test_activate_account_fail_google_oauth2_no_google_id(self):
+        """Deve falhar se Google OAuth2 sem google_id"""
+        user = User(
+            email="user@gmail.com",
+            full_name="Google User",
+            invitation_token="token123",
+            invitation_expires_at=datetime.utcnow() + timedelta(days=1),
+            auth_provider=AuthProvider.EMAIL_PASSWORD,
+            password_hash="temp_hash"
+        )
+        
+        with pytest.raises(BusinessRuleViolationError, match="Google ID obrigatório para ativação"):
+            user.activate_account(
+                google_id=None,
+                auth_provider=AuthProvider.GOOGLE_OAUTH2
+            )
+
+    def test_activate_account_backwards_compatibility(self):
+        """Deve manter compatibilidade com ativação antiga (apenas password_hash)"""
+        user = User(
+            email="user@test.com",
+            full_name="Test User",
+            is_active=False,
+            email_verified=False,
+            invitation_token="token123",
+            invitation_expires_at=datetime.utcnow() + timedelta(days=1),
+            auth_provider=AuthProvider.EMAIL_PASSWORD,
+            password_hash="temp_hash"
+        )
+        
+        # Ativação no formato antigo (apenas password_hash)
+        user.activate_account("new_password_hash")
+        
+        assert user.is_active is True
+        assert user.email_verified is True
+        assert user.password_hash == "new_password_hash"
+        assert user.auth_provider == AuthProvider.EMAIL_PASSWORD
 
     def test_deactivate_user(self):
         """Deve desativar usuário"""
@@ -412,7 +484,7 @@ class TestUserEntity:
         assert user.updated_at > old_updated_at
 
     def test_create_with_invitation_factory(self):
-        """Deve criar usuário com convite usando factory method"""
+        """Deve criar usuário com convite usando factory method (sem auth_provider definido)"""
         municipality_id = MunicipalityId(uuid4())
         invited_by = UserId(uuid4())
         
@@ -434,26 +506,41 @@ class TestUserEntity:
         assert user.invitation_token is not None
         assert user.invitation_expires_at is not None
         assert user.invited_by == invited_by
+        # Auth provider temporário - será definido na ativação
         assert user.auth_provider == AuthProvider.EMAIL_PASSWORD
+        assert user.password_hash is not None  # Hash temporário
 
-    def test_create_with_invitation_google_oauth2(self):
-        """Deve criar usuário com convite Google OAuth2"""
+    def test_create_with_invitation_flexible_activation_flow(self):
+        """Deve testar fluxo completo de criação e ativação flexível"""
         municipality_id = MunicipalityId(uuid4())
         invited_by = UserId(uuid4())
         
+        # 1. Criação do usuário com convite (sem definir auth_provider)
         user = User.create_with_invitation(
             email="user@test.com",
             full_name="Test User",
             role=UserRole.USER,
             primary_municipality_id=municipality_id,
-            invited_by=invited_by,
-            auth_provider=AuthProvider.GOOGLE_OAUTH2,
-            google_id="google123"
+            invited_by=invited_by
         )
         
+        # Usuário criado mas não ativo
+        assert user.is_active is False
+        assert user.invitation_token is not None
+        
+        # 2. Usuário escolhe ativar com Google OAuth2
+        user.activate_account(
+            google_id="google_123456",
+            auth_provider=AuthProvider.GOOGLE_OAUTH2
+        )
+        
+        # Verificações após ativação
+        assert user.is_active is True
+        assert user.email_verified is True
         assert user.auth_provider == AuthProvider.GOOGLE_OAUTH2
-        assert user.google_id == "google123"
-        assert user.password_hash is None
+        assert user.google_id == "google_123456"
+        assert user.password_hash is None  # Removido para OAuth2
+        assert user.invitation_token is None
 
     def test_compatibility_properties(self):
         """Deve manter compatibilidade com propriedades antigas"""

@@ -52,6 +52,7 @@ class CreateUserDTO:
     primary_municipality_id: str
     municipality_ids: Optional[List[str]] = None
     auth_provider: str = "email_password"
+    created_by_id: Optional[str] = None
 
 
 @dataclass
@@ -69,11 +70,14 @@ class UserListDTO:
     last_login: Optional[str]
     created_at: str
     has_pending_invitation: bool
+    invited_by_name: Optional[str] = None
 
 
 @dataclass
 class ActivateUserDTO:
-    """DTO para ativação de usuário"""
+    """DTO para ativação de usuário com escolha de método de autenticação"""
 
     invitation_token: str
-    password: Optional[str] = None
+    auth_provider: str = "email_password"  # "email_password" ou "google_oauth2"
+    password: Optional[str] = None  # Obrigatório para email_password
+    google_token: Optional[str] = None  # Obrigatório para google_oauth2

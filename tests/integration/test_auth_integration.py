@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from application.dto.auth_dto import LoginEmailPasswordDTO, LoginResponseDTO, UserDTO
+from application.dto.auth_dto import LoginEmailPasswordDTO, LoginResponseDTO, UserDTO, ActivateUserDTO
 from application.use_cases.authentication_use_case import AuthenticationUseCase
 from domain.entities.user import User
 from domain.exceptions.auth_exceptions import InvalidCredentialsError, InvalidTokenError
@@ -413,3 +413,165 @@ class TestAuthenticationIntegration:
             # Act & Assert
             with pytest.raises(expected_type):
                 await auth_use_case.login_email_password(login_request)
+
+    @pytest.mark.asyncio
+    async def test_flexible_user_activation_integration(self):
+        """Testa integração completa da ativação flexível de usuários"""
+        # Arrange
+        from application.use_cases.user_management_use_case import UserManagementUseCase
+        from domain.repositories.user_repository import UserRepository
+        from domain.services.email_service import EmailService
+        
+        mock_user_repo = Mock(spec=UserRepository)
+        mock_auth_service = Mock(spec=AuthenticationService)
+        mock_email_service = Mock(spec=EmailService)
+        
+        user_management_use_case = UserManagementUseCase(
+            user_repo=mock_user_repo,
+            auth_service=mock_auth_service,
+            email_service=mock_email_service
+        )
+        
+        # Usuário com convite pendente
+        municipality_id = MunicipalityId(uuid4())
+        invited_user = User(
+            id=UserId(uuid4()),
+            email="invited@test.com",
+            full_name="Invited User",
+            role=UserRole.USER,
+            primary_municipality_id=municipality_id,
+            municipality_ids=[municipality_id],
+            is_active=False,
+            email_verified=False,
+            invitation_token="invitation_token_123",
+            invitation_expires_at=datetime.utcnow() + timedelta(days=7),
+            invited_by=UserId(uuid4()),
+            auth_provider=AuthProvider.EMAIL_PASSWORD,
+            password_hash="temp_hash",
+            created_at=datetime.utcnow()
+        )
+        
+        # Configurar mocks
+        mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
+        mock_user_repo.save = AsyncMock()
+        mock_auth_service.hash_password = Mock(return_value="hashed_new_password")
+        mock_email_service.send_welcome_email = AsyncMock()
+        mock_email_service.send_account_activated_email = AsyncMock()
+        
+        # Test 1: Ativação com email/senha
+        email_password_request = ActivateUserDTO(
+            invitation_token="invitation_token_123",
+            auth_provider="email_password",
+            password="new_password123"
+        )
+        
+        # Act
+        result = await user_management_use_case.activate_user_account(email_password_request)
+        
+        # Assert
+        assert result.email == invited_user.email
+        assert result.is_active is True
+        assert invited_user.auth_provider == AuthProvider.EMAIL_PASSWORD
+        assert invited_user.password_hash == "hashed_new_password"
+        
+        # Reset user for Google OAuth2 test
+        invited_user.is_active = False
+        invited_user.email_verified = False
+        invited_user.invitation_token = "invitation_token_456"
+        invited_user.auth_provider = AuthProvider.EMAIL_PASSWORD
+        invited_user.password_hash = "temp_hash"
+        invited_user.google_id = None
+        
+        # Test 2: Ativação com Google OAuth2
+        google_user_info = {
+            "sub": "google_user_123456",
+            "email": invited_user.email,
+            "name": invited_user.full_name
+        }
+        mock_auth_service._verify_google_token = AsyncMock(return_value=google_user_info)
+        
+        google_oauth2_request = ActivateUserDTO(
+            invitation_token="invitation_token_456",
+            auth_provider="google_oauth2",
+            google_token="google_token_123"
+        )
+        
+        # Act
+        result = await user_management_use_case.activate_user_account(google_oauth2_request)
+        
+        # Assert
+        assert result.email == invited_user.email
+        assert result.is_active is True
+        assert invited_user.auth_provider == AuthProvider.GOOGLE_OAUTH2
+        assert invited_user.google_id == "google_user_123456"
+        assert invited_user.password_hash is None
+
+    @pytest.mark.asyncio
+    async def test_user_creation_without_auth_provider_integration(self):
+        """Testa criação de usuário sem definir auth_provider (para ativação flexível)"""
+        # Arrange
+        from application.use_cases.user_management_use_case import UserManagementUseCase
+        from application.dto.auth_dto import CreateUserDTO
+        from domain.repositories.user_repository import UserRepository
+        from domain.services.email_service import EmailService
+        
+        mock_user_repo = Mock(spec=UserRepository)
+        mock_auth_service = Mock(spec=AuthenticationService)
+        mock_email_service = Mock(spec=EmailService)
+        
+        user_management_use_case = UserManagementUseCase(
+            user_repo=mock_user_repo,
+            auth_service=mock_auth_service,
+            email_service=mock_email_service
+        )
+        
+        # Admin user
+        municipality_id = MunicipalityId(uuid4())
+        admin_user = User(
+            id=UserId(uuid4()),
+            email="admin@test.com",
+            full_name="Admin User",
+            role=UserRole.ADMIN,
+            primary_municipality_id=municipality_id,
+            municipality_ids=[municipality_id],
+            password_hash="hashed_password",
+            auth_provider=AuthProvider.EMAIL_PASSWORD,
+            is_active=True,
+            email_verified=True,
+            created_at=datetime.utcnow()
+        )
+        
+        # Configurar mocks
+        mock_user_repo.find_by_email = AsyncMock(return_value=None)
+        mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
+        mock_user_repo.save = AsyncMock()
+        mock_email_service.send_invitation_email = AsyncMock()
+        
+        create_request = CreateUserDTO(
+            email="newuser@test.com",
+            full_name="New User",
+            role="user",
+            primary_municipality_id=municipality_id.value,
+            created_by_id=str(admin_user.id.value)
+        )
+        
+        # Act
+        result = await user_management_use_case.create_user_with_invitation(
+            request=create_request,
+            created_by=admin_user
+        )
+        
+        # Assert
+        assert result.email == "newuser@test.com"
+        assert result.is_active is False
+        assert result.email_verified is False
+        
+        # Verifica que o usuário foi salvo
+        mock_user_repo.save.assert_called_once()
+        saved_user = mock_user_repo.save.call_args[0][0]
+        
+        # Verifica que auth_provider foi definido como temporário
+        assert saved_user.auth_provider == AuthProvider.EMAIL_PASSWORD
+        assert saved_user.password_hash is not None  # Hash temporário
+        assert saved_user.invitation_token is not None
+        assert saved_user.invitation_expires_at is not None

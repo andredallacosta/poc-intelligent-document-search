@@ -25,8 +25,8 @@ from domain.services.rate_limit_service import RateLimitService
 from infrastructure.config.settings import settings
 from interface.dependencies.container import (
     get_authentication_use_case,
-    get_user_management_use_case,
     get_rate_limit_service,
+    get_user_management_use_case,
 )
 from interface.middleware.auth_middleware import get_authenticated_user
 from interface.schemas.auth_schemas import (
@@ -51,11 +51,11 @@ def _get_client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
-    
+
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip
-    
+
     return request.client.host if request.client else "unknown"
 
 
@@ -83,12 +83,9 @@ async def login_email_password(
         client_ip = _get_client_ip(http_request)
         await rate_limit_service.check_multiple_limits(
             endpoint="/api/v1/auth/login",
-            checks={
-                "per_ip": client_ip,
-                "per_email": request.email
-            }
+            checks={"per_ip": client_ip, "per_email": request.email},
         )
-        
+
         login_dto = LoginEmailPasswordDTO(
             email=request.email, password=request.password
         )
@@ -129,7 +126,7 @@ async def login_email_password(
                 "message": str(e),
                 "code": "RATE_LIMIT_EXCEEDED",
             },
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
     except AuthenticationError as e:
         raise HTTPException(
@@ -161,10 +158,9 @@ async def get_google_auth_url(
         # Rate limiting por IP
         client_ip = _get_client_ip(http_request)
         await rate_limit_service.check_multiple_limits(
-            endpoint="/api/v1/auth/google",
-            checks={"per_ip": client_ip}
+            endpoint="/api/v1/auth/google", checks={"per_ip": client_ip}
         )
-        
+
         if not settings.google_client_id:
             raise HTTPException(
                 status_code=500,
@@ -185,12 +181,14 @@ async def get_google_auth_url(
             "prompt": "consent",
         }
 
-        google_auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
+        google_auth_url = (
+            f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
+        )
 
         return GoogleAuthUrlResponse(
             auth_url=google_auth_url, redirect_uri=settings.google_redirect_uri
         )
-        
+
     except RateLimitExceededError as e:
         logger.warning(f"Rate limit exceeded for Google auth URL: {e}")
         raise HTTPException(
@@ -200,7 +198,7 @@ async def get_google_auth_url(
                 "message": str(e),
                 "code": "RATE_LIMIT_EXCEEDED",
             },
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
 
 
@@ -228,10 +226,9 @@ async def google_oauth2_callback(
         # Rate limiting por IP
         client_ip = _get_client_ip(http_request)
         await rate_limit_service.check_multiple_limits(
-            endpoint="/api/v1/auth/google",
-            checks={"per_ip": client_ip}
+            endpoint="/api/v1/auth/google", checks={"per_ip": client_ip}
         )
-        
+
         # Troca o código por um token de acesso
         login_dto = LoginGoogleOAuth2DTO(google_token=code)
         response = await auth_use_case.login_google_oauth2(login_dto)
@@ -270,7 +267,7 @@ async def google_oauth2_callback(
                 "message": str(e),
                 "code": "RATE_LIMIT_EXCEEDED",
             },
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
     except AuthenticationError as e:
         raise HTTPException(
@@ -307,10 +304,9 @@ async def login_google_oauth2(
         # Rate limiting por IP
         client_ip = _get_client_ip(http_request)
         await rate_limit_service.check_multiple_limits(
-            endpoint="/api/v1/auth/google",
-            checks={"per_ip": client_ip}
+            endpoint="/api/v1/auth/google", checks={"per_ip": client_ip}
         )
-        
+
         login_dto = LoginGoogleOAuth2DTO(google_token=request.google_token)
 
         response = await auth_use_case.login_google_oauth2(login_dto)
@@ -345,7 +341,7 @@ async def login_google_oauth2(
                 "message": str(e),
                 "code": "RATE_LIMIT_EXCEEDED",
             },
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
     except AuthenticationError as e:
         raise HTTPException(
@@ -391,14 +387,17 @@ async def get_current_user(
 
 @router.post(
     "/activate",
-    response_model=UserListResponse,
+    response_model=dict,
     responses={
-        400: {"model": ErrorResponse, "description": "Token inválido ou expirado"},
+        400: {
+            "model": ErrorResponse,
+            "description": "Token inválido ou dados incorretos",
+        },
         404: {"model": ErrorResponse, "description": "Token não encontrado"},
         500: {"model": ErrorResponse, "description": "Erro interno"},
     },
-    summary="Ativar conta de usuário",
-    description="Ativa conta de usuário via token de convite",
+    summary="Ativar conta de usuário com escolha de autenticação",
+    description="Ativa conta de usuário via token de convite, permitindo escolher método de autenticação",
 )
 async def activate_user_account(
     request: ActivateUserRequest,
@@ -408,12 +407,29 @@ async def activate_user_account(
 ):
     try:
         activate_dto = ActivateUserDTO(
-            invitation_token=request.invitation_token, password=request.password
+            invitation_token=request.invitation_token,
+            auth_provider=request.auth_provider,
+            password=request.password,
+            google_token=request.google_token,
         )
 
         user_dto = await user_management_use_case.activate_user_account(activate_dto)
 
-        return UserListResponse(**user_dto.__dict__)
+        # Resposta personalizada baseada no método escolhido
+        next_step = (
+            "Faça login com sua conta Google"
+            if request.auth_provider == "google_oauth2"
+            else "Faça login com seu email e senha"
+        )
+
+        return {
+            "success": True,
+            "message": "Conta ativada com sucesso!",
+            "user_id": user_dto.id,
+            "auth_provider": request.auth_provider,
+            "next_step": next_step,
+            "user": user_dto.__dict__,
+        }
 
     except UserNotFoundError as e:
         raise HTTPException(
@@ -440,6 +456,90 @@ async def activate_user_account(
             detail={
                 "error": "internal_error",
                 "message": "Erro interno na ativação",
+                "code": "INTERNAL_ERROR",
+            },
+        )
+
+
+@router.get(
+    "/check-invitation/{invitation_token}",
+    response_model=dict,
+    responses={
+        404: {"model": ErrorResponse, "description": "Token não encontrado"},
+        410: {"model": ErrorResponse, "description": "Token expirado"},
+        500: {"model": ErrorResponse, "description": "Erro interno"},
+    },
+    summary="Verificar convite antes da ativação",
+    description="Verifica se um token de convite é válido e retorna informações do usuário",
+)
+async def check_invitation_token(
+    invitation_token: str,
+    user_management_use_case: UserManagementUseCase = Depends(
+        get_user_management_use_case
+    ),
+):
+    """Verifica convite antes da ativação - útil para o frontend"""
+    try:
+        # Usa o container para obter o repositório
+        from interface.dependencies.container import get_container
+
+        container = get_container()
+        user_repo = container.get_user_repository()
+
+        user = await user_repo.find_by_invitation_token(invitation_token)
+
+        if not user:
+            raise HTTPException(
+                status_code=404, detail="Token de convite inválido ou expirado"
+            )
+
+        # Verifica se expirou
+        from datetime import datetime
+
+        expired = (
+            user.invitation_expires_at
+            and datetime.utcnow() > user.invitation_expires_at
+        )
+
+        if expired:
+            raise HTTPException(
+                status_code=404, detail="Token de convite inválido ou expirado"
+            )
+
+        # Busca quem convidou
+        invited_by_name = "Sistema"
+        if user.invited_by:
+            invited_by_user = await user_repo.find_by_id(user.invited_by)
+            if invited_by_user:
+                invited_by_name = invited_by_user.full_name
+
+        return {
+            "valid": True,
+            "expired": False,
+            "user": {
+                "email": user.email,
+                "full_name": user.full_name,
+            },
+            "invited_by": {
+                "full_name": invited_by_name,
+            },
+            "expires_at": (
+                user.invitation_expires_at.isoformat()
+                if user.invitation_expires_at
+                else None
+            ),
+            "message": f"Convite válido para {user.full_name}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro na verificação de convite: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "internal_error",
+                "message": "Erro interno na verificação",
                 "code": "INTERNAL_ERROR",
             },
         )

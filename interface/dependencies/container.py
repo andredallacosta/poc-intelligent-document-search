@@ -24,16 +24,18 @@ from domain.services.authentication_service import AuthenticationService
 from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
+from domain.services.email_service import EmailService
+from domain.services.rate_limit_service import RateLimitService
 from domain.services.search_service import SearchService
 from domain.services.threshold_service import ThresholdService
 from domain.services.token_limit_service import TokenLimitService
-from domain.services.rate_limit_service import RateLimitService
 from infrastructure.config.settings import settings
 from infrastructure.database.connection import db_connection, get_db_session
 from infrastructure.external.llm_service_impl import LLMServiceImpl
 from infrastructure.external.openai_client import OpenAIClient
 from infrastructure.external.redis_client import RedisClient
 from infrastructure.external.s3_service import S3Service
+from infrastructure.external.smtp_email_service import SMTPEmailService
 from infrastructure.processors.text_chunker import TextChunker
 from infrastructure.repositories.postgres_document_processing_job_repository import (
     PostgresDocumentProcessingJobRepository,
@@ -252,6 +254,42 @@ class Container:
             )
         return self._instances["rate_limit_service"]
 
+    @lru_cache(maxsize=1)
+    def get_email_service(self) -> EmailService:
+        """Email service using SMTP"""
+        if "email_service" not in self._instances:
+            self._instances["email_service"] = SMTPEmailService(
+                smtp_host=settings.smtp_host,
+                smtp_port=settings.smtp_port,
+                smtp_username=settings.smtp_username,
+                smtp_password=settings.smtp_password,
+                smtp_use_tls=settings.smtp_use_tls,
+                from_email=settings.smtp_from_email,
+                from_name=settings.smtp_from_name,
+                base_url=settings.base_url,
+            )
+        return self._instances["email_service"]
+
+    def get_user_repository(self):
+        """Retorna função para criar PostgresUserRepository"""
+        return get_postgres_user_repository
+
+    def get_municipality_repository(self):
+        """Retorna função para criar PostgresMunicipalityRepository"""
+        return get_postgres_municipality_repository
+
+    def get_authentication_service(self):
+        """Retorna função para criar AuthenticationService"""
+        return get_authentication_service
+
+    def get_authentication_use_case(self):
+        """Retorna função para criar AuthenticationUseCase"""
+        return get_authentication_use_case
+
+    def get_user_management_use_case(self):
+        """Retorna função para criar UserManagementUseCase"""
+        return get_user_management_use_case
+
     async def close_connections(self):
         """Fecha todas as conexões"""
         if "redis_client" in self._instances:
@@ -261,6 +299,11 @@ class Container:
 
 
 container = Container()
+
+
+def get_container() -> Container:
+    """Retorna a instância global do container"""
+    return container
 
 
 async def get_postgres_vector_repository(
@@ -566,12 +609,20 @@ async def get_authentication_use_case(
     return AuthenticationUseCase(auth_service)
 
 
+def get_email_service() -> EmailService:
+    """Dependency for EmailService"""
+    return container.get_email_service()
+
+
 async def get_user_management_use_case(
     user_repo: PostgresUserRepository = Depends(get_postgres_user_repository),
     auth_service: AuthenticationService = Depends(get_authentication_service),
+    email_service: EmailService = Depends(get_email_service),
 ) -> UserManagementUseCase:
     """Dependency for UserManagementUseCase"""
-    return UserManagementUseCase(user_repo, auth_service)
+    return UserManagementUseCase(
+        user_repo=user_repo, auth_service=auth_service, email_service=email_service
+    )
 
 
 def get_rate_limit_service() -> RateLimitService:

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginEmailPasswordRequest(BaseModel):
@@ -92,12 +92,31 @@ class UserListResponse(BaseModel):
 
 
 class ActivateUserRequest(BaseModel):
-    """Schema para ativação de usuário"""
+    """Schema para ativação de usuário com escolha de método de autenticação"""
 
-    invitation_token: str = Field(..., description="Token de convite")
-    password: Optional[str] = Field(
-        None, min_length=6, description="Senha (obrigatória para email/senha)"
+    invitation_token: str = Field(
+        ..., description="Token de convite recebido por email"
     )
+    auth_provider: str = Field(
+        default="email_password",
+        description="Método de autenticação: email_password ou google_oauth2",
+    )
+    password: Optional[str] = Field(
+        default=None, description="Senha (obrigatória para email_password)"
+    )
+    google_token: Optional[str] = Field(
+        default=None, description="Token do Google (obrigatório para google_oauth2)"
+    )
+
+    @field_validator("auth_provider")
+    @classmethod
+    def validate_auth_provider(cls, v):
+        allowed_providers = ["email_password", "google_oauth2"]
+        if v not in allowed_providers:
+            raise ValueError(
+                f"Auth provider deve ser um de: {', '.join(allowed_providers)}"
+            )
+        return v
 
 
 class ErrorResponse(BaseModel):
