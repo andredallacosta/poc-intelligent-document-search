@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
+import time
 
 # Adiciona o diretório raiz ao path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -117,12 +118,15 @@ async def test_all_emails(email_service: SMTPEmailService, email: str):
 
     await test_invitation_email(email_service, email)
     print()
+    time.sleep(10)
 
     await test_welcome_email(email_service, email)
     print()
+    time.sleep(10)
 
     await test_password_reset_email(email_service, email)
     print()
+    time.sleep(10)
 
     await test_account_activated_email(email_service, email)
     print()

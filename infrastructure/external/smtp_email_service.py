@@ -1,7 +1,11 @@
 import logging
+import re
 import smtplib
+import uuid
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from typing import Optional
 
 from domain.exceptions.auth_exceptions import EmailDeliveryError
@@ -32,6 +36,32 @@ class SMTPEmailService(EmailService):
         self._from_email = from_email or smtp_username
         self._from_name = from_name
         self._base_url = base_url
+        
+        # Validate configuration
+        self._validate_configuration()
+
+    def _validate_configuration(self) -> None:
+        """Validate SMTP configuration to prevent common issues"""
+        if not self._smtp_host:
+            raise ValueError("SMTP_HOST is required")
+        if not self._smtp_username:
+            raise ValueError("SMTP_USERNAME is required")
+        if not self._smtp_password:
+            raise ValueError("SMTP_PASSWORD is required")
+        if self._from_email and not self._is_valid_email(self._from_email):
+            raise ValueError(f"SMTP_FROM_EMAIL must be a valid email: {self._from_email}")
+
+    def _is_valid_email(self, email: str) -> bool:
+        """Validate email format"""
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, email))
+
+    def _validate_email_input(self, email: str, full_name: str) -> None:
+        """Validate email input parameters"""
+        if not email or not self._is_valid_email(email):
+            raise EmailDeliveryError(f"Invalid email address: {email}")
+        if not full_name or len(full_name.strip()) < 2:
+            raise EmailDeliveryError("Full name must be at least 2 characters")
 
     async def send_invitation_email(
         self,
@@ -42,6 +72,10 @@ class SMTPEmailService(EmailService):
         municipality_name: Optional[str] = None,
     ) -> bool:
         """Envia email de convite para ativação de conta"""
+        
+        self._validate_email_input(email, full_name)
+        if not invitation_token or len(invitation_token.strip()) < 10:
+            raise EmailDeliveryError("Invalid invitation token")
 
         activation_url = f"{self._base_url}/auth/activate?token={invitation_token}"
         municipality_text = f" da {municipality_name}" if municipality_name else ""
@@ -77,6 +111,10 @@ class SMTPEmailService(EmailService):
         reset_token: str,
     ) -> bool:
         """Envia email de redefinição de senha"""
+        
+        self._validate_email_input(email, full_name)
+        if not reset_token or len(reset_token.strip()) < 10:
+            raise EmailDeliveryError("Invalid reset token")
 
         reset_url = f"{self._base_url}/auth/reset-password?token={reset_token}"
 
@@ -106,6 +144,8 @@ class SMTPEmailService(EmailService):
         full_name: str,
     ) -> bool:
         """Envia email de confirmação de ativação de conta"""
+        
+        self._validate_email_input(email, full_name)
 
         subject = "Conta ativada com sucesso!"
 
@@ -127,6 +167,8 @@ class SMTPEmailService(EmailService):
         municipality_name: Optional[str] = None,
     ) -> bool:
         """Envia email de boas-vindas após ativação"""
+        
+        self._validate_email_input(email, full_name)
 
         municipality_text = f" da {municipality_name}" if municipality_name else ""
         subject = f"Bem-vindo ao Sistema de Documentos Inteligentes{municipality_text}!"
@@ -160,20 +202,40 @@ class SMTPEmailService(EmailService):
         """Envia email via SMTP"""
 
         try:
-            # Cria mensagem
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = f"{self._from_name} <{self._from_email}>"
+            if "@" in self._smtp_username:
+                from_email = self._smtp_username
+            elif self._from_email:
+                from_email = self._from_email
+            else:
+                host_domain = self._smtp_host if "." in self._smtp_host else "localhost"
+                from_email = f"noreply@{host_domain}"
+            
+            msg["From"] = f"{self._from_name} <{from_email}>"
             msg["To"] = f"{to_name} <{to_email}>"
+            msg["Date"] = formatdate(localtime=True)
+            
+            if "@" in self._smtp_username:
+                domain = self._smtp_username.split("@")[1]
+            elif self._from_email and "@" in self._from_email:
+                domain = self._from_email.split("@")[1]
+            else:
+                domain = self._smtp_host if "." in self._smtp_host else "localhost"
+            
+            msg["Message-ID"] = make_msgid(domain=domain)
+            msg["X-Mailer"] = "Sistema de Documentos Inteligentes v2.0"
+            msg["MIME-Version"] = "1.0"
+            
+            if self._from_email and self._from_email != from_email:
+                msg["Reply-To"] = f"{self._from_name} <{self._from_email}>"
 
-            # Adiciona conteúdo texto e HTML
             text_part = MIMEText(text_content, "plain", "utf-8")
             html_part = MIMEText(html_content, "html", "utf-8")
 
             msg.attach(text_part)
             msg.attach(html_part)
 
-            # Conecta ao servidor SMTP
             with smtplib.SMTP(self._smtp_host, self._smtp_port) as server:
                 if self._smtp_use_tls:
                     server.starttls()
@@ -192,6 +254,43 @@ class SMTPEmailService(EmailService):
 
             return True
 
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(
+                "smtp_authentication_failed",
+                extra={
+                    "to_email": to_email,
+                    "subject": subject,
+                    "error": str(e),
+                    "smtp_host": self._smtp_host,
+                    "smtp_username": self._smtp_username,
+                },
+            )
+            raise EmailDeliveryError(f"Falha na autenticação SMTP. Verifique SMTP_USERNAME e SMTP_PASSWORD: {str(e)}")
+        
+        except smtplib.SMTPRecipientsRefused as e:
+            logger.error(
+                "smtp_recipients_refused",
+                extra={
+                    "to_email": to_email,
+                    "subject": subject,
+                    "error": str(e),
+                    "smtp_host": self._smtp_host,
+                },
+            )
+            raise EmailDeliveryError(f"Email de destino rejeitado: {to_email}")
+        
+        except smtplib.SMTPServerDisconnected as e:
+            logger.error(
+                "smtp_server_disconnected",
+                extra={
+                    "to_email": to_email,
+                    "subject": subject,
+                    "error": str(e),
+                    "smtp_host": self._smtp_host,
+                },
+            )
+            raise EmailDeliveryError(f"Conexão SMTP perdida. Verifique SMTP_HOST e SMTP_PORT: {str(e)}")
+        
         except Exception as e:
             logger.error(
                 "email_send_failed",
@@ -247,8 +346,7 @@ class SMTPEmailService(EmailService):
                 <div class="content">
                     <h2>Olá, {full_name}!</h2>
 
-                    <p>Você foi convidado por <strong>{invited_by_name}</strong> para acessar o \\
-Sistema de Documentos Inteligentes{municipality_text}.</p>
+                    <p>Você foi convidado por <strong>{invited_by_name}</strong> para acessar o Sistema de Documentos Inteligentes{municipality_text}.</p>
                     <p>Este sistema permite que você:</p>
                     <ul>
                         <li>Faça perguntas sobre documentos oficiais</li>
@@ -487,8 +585,7 @@ Este é um email automático. Não responda a esta mensagem.
 
                     <p>Seja bem-vindo ao Sistema de Documentos Inteligentes{municipality_text}!</p>
 
-                    <p>Você agora tem acesso a uma ferramenta poderosa que utiliza inteligência artificial \\
-para ajudar você a encontrar informações em documentos oficiais de forma rápida e precisa.</p>
+                    <p>Você agora tem acesso a uma ferramenta poderosa que utiliza inteligência artificial para ajudar você a encontrar informações em documentos oficiais de forma rápida e precisa.</p>
                     <h3>Como usar o sistema:</h3>
                     <ol>
                         <li>Faça login com seu email e senha</li>
@@ -524,8 +621,7 @@ Olá, {full_name}!
 
 Seja bem-vindo ao Sistema de Documentos Inteligentes{municipality_text}!
 
-Você agora tem acesso a uma ferramenta poderosa que utiliza inteligência artificial \\
-para ajudar você a encontrar informações em documentos oficiais de forma rápida e precisa.
+Você agora tem acesso a uma ferramenta poderosa que utiliza inteligência artificial para ajudar você a encontrar informações em documentos oficiais de forma rápida e precisa.
 
 Como usar o sistema:
 1. Faça login com seu email e senha

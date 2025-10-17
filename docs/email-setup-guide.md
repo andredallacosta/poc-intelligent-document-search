@@ -3,6 +3,7 @@
 ## 📧 Visão Geral
 
 O sistema de emails permite enviar:
+
 - **Convites de usuários** com token de ativação
 - **Emails de boas-vindas** após ativação
 - **Redefinição de senha** (preparado para futuro)
@@ -40,7 +41,7 @@ BASE_URL=http://localhost:8000  # Ou sua URL de produção
 
 1. **Ative a verificação em duas etapas** na sua conta Google
 2. **Gere uma senha de app**:
-   - Acesse: https://myaccount.google.com/apppasswords
+   - Acesse: <https://myaccount.google.com/apppasswords>
    - Selecione "App" → "Outro (nome personalizado)"
    - Digite "Sistema de Documentos"
    - Use a senha gerada no `SMTP_PASSWORD`
@@ -72,6 +73,17 @@ SMTP_USE_TLS=true
 SMTP_USERNAME=apikey
 SMTP_PASSWORD=SG.sua_api_key_aqui
 SMTP_FROM_EMAIL=noreply@suaempresa.com
+```
+
+### Mailtrap (Desenvolvimento/Teste)
+
+```bash
+SMTP_HOST=live.smtp.mailtrap.io
+SMTP_PORT=587
+SMTP_USE_TLS=true
+SMTP_USERNAME=2bd3d21d684829  # Token do Mailtrap (não é email)
+SMTP_PASSWORD=sua_senha_mailtrap
+SMTP_FROM_EMAIL=noreply@suaempresa.com  # OBRIGATÓRIO para Mailtrap
 ```
 
 ### Amazon SES (Produção)
@@ -141,7 +153,7 @@ curl -X POST http://localhost:8000/api/v1/users/create \
 - **Conteúdo**: Confirmação de ativação
 - **Enviado**: Imediatamente após ativação
 
-## 🔒 Segurança
+## 🔒 Segurança e Anti-Spam
 
 ### Boas Práticas
 
@@ -150,6 +162,35 @@ curl -X POST http://localhost:8000/api/v1/users/create \
 3. **Use HTTPS** em produção para links seguros
 4. **Monitore bounces** e emails rejeitados
 5. **Rate limiting** já implementado para evitar spam
+
+### ⚠️ Prevenção de Spam - CRÍTICO
+
+**IMPORTANTE**: O sistema foi atualizado para corrigir problemas comuns que causam emails serem marcados como spam:
+
+#### Problemas Corrigidos ✅
+
+- **Missing Date header** (1.4 pontos) - ✅ CORRIGIDO: Cabeçalho Date adicionado automaticamente
+- **Missing Message-ID header** (0.1 pontos) - ✅ CORRIGIDO: Message-ID único gerado para cada email
+- **Gmail From header mismatch** (1.0 pontos) - ✅ CORRIGIDO: Usa email autenticado como From
+- **High bit body without Message-ID** (3.6 pontos) - ✅ CORRIGIDO: Headers obrigatórios adicionados
+
+#### Configuração Anti-Spam
+
+```bash
+# CENÁRIO 1: SMTP_USERNAME é um email (Gmail, Outlook)
+SMTP_USERNAME=seu_email@gmail.com
+SMTP_FROM_EMAIL=noreply@suaempresa.com  # Opcional, vai para Reply-To
+
+# CENÁRIO 2: SMTP_USERNAME é um token (Mailtrap, SendGrid)
+SMTP_USERNAME=2bd3d21d684829  # Token do Mailtrap
+SMTP_FROM_EMAIL=noreply@suaempresa.com  # OBRIGATÓRIO neste caso
+
+# O sistema automaticamente:
+# - Usa SMTP_USERNAME como From se for email válido
+# - Usa SMTP_FROM_EMAIL como From se SMTP_USERNAME for token
+# - Adiciona Reply-To quando necessário
+# - Inclui headers obrigatórios (Date, Message-ID, X-Mailer)
+```
 
 ### Configuração de DNS (Produção)
 
@@ -167,6 +208,34 @@ TXT _dmarc "v=DMARC1; p=quarantine; rua=mailto:dmarc@suaempresa.com"
 ```
 
 ## 🚨 Troubleshooting
+
+### Emails marcados como SPAM
+
+**Se seus emails ainda estão indo para spam após as correções:**
+
+1. **Verifique o score de spam**:
+
+   ```bash
+   # Teste com Mail Tester
+   # Envie um email para: test-xxxxx@mail-tester.com
+   python scripts/test_email_system.py --email test-xxxxx@mail-tester.com --type invitation
+   ```
+
+2. **Problemas restantes comuns**:
+   - `FREEMAIL_FROM` (0.0 pontos): Use domínio profissional em produção
+   - `DKIM_ADSP_CUSTOM_MED` (0.0 pontos): Configure DKIM no seu domínio
+   - `WEIRD_PORT` (0.0 pontos): Use porta 587 (TLS) ou 465 (SSL)
+
+3. **Configuração recomendada para produção**:
+
+   ```bash
+   # Use provedor profissional (SendGrid, Amazon SES)
+   SMTP_HOST=smtp.sendgrid.net
+   SMTP_PORT=587
+   SMTP_USERNAME=apikey
+   SMTP_PASSWORD=SG.sua_api_key
+   SMTP_FROM_EMAIL=noreply@seudominio.com  # Domínio próprio
+   ```
 
 ### Erro: "Authentication failed"
 
@@ -197,6 +266,7 @@ TXT _dmarc "v=DMARC1; p=quarantine; rua=mailto:dmarc@suaempresa.com"
 ### Logs Estruturados
 
 O sistema gera logs para:
+
 - `email_sent_successfully`: Email enviado com sucesso
 - `email_send_failed`: Falha no envio
 - `invitation_email_sent`: Convite enviado
@@ -216,6 +286,46 @@ O sistema gera logs para:
 3. **Crie um usuário de teste via API**
 4. **Configure DNS para produção**
 5. **Implemente monitoramento de bounces**
+
+## ✅ Testando as Melhorias Anti-Spam
+
+### Teste Rápido
+
+```bash
+# 1. Teste o sistema atualizado
+python scripts/test_email_system.py --email seu_email@gmail.com --type invitation
+
+# 2. Verifique se o email chegou na caixa de entrada (não spam)
+# 3. Inspecione os headers do email recebido para confirmar:
+#    - Date: presente
+#    - Message-ID: presente e único
+#    - From: usando email autenticado
+#    - Reply-To: configurado se SMTP_FROM_EMAIL diferente
+```
+
+### Teste com Mail Tester (Recomendado)
+
+```bash
+# 1. Acesse https://www.mail-tester.com/
+# 2. Copie o email de teste (ex: test-12345@mail-tester.com)
+# 3. Execute:
+python scripts/test_email_system.py --email test-12345@mail-tester.com --type invitation
+
+# 4. Verifique o score no site (deve ser > 8/10 agora)
+```
+
+### Verificação de Headers
+
+Os emails agora incluem automaticamente:
+
+```
+Date: Mon, 13 Oct 2025 10:30:00 -0300
+Message-ID: <unique-id@gmail.com>
+From: Sistema de Documentos Inteligentes <seu_email@gmail.com>
+Reply-To: Sistema de Documentos Inteligentes <noreply@suaempresa.com>
+X-Mailer: Sistema de Documentos Inteligentes v2.0
+MIME-Version: 1.0
+```
 
 ## 💡 Dicas de Produção
 
