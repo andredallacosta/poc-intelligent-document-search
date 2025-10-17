@@ -24,6 +24,7 @@ from domain.services.authentication_service import AuthenticationService
 from domain.services.chat_service import ChatService
 from domain.services.document_processor import DocumentProcessor
 from domain.services.document_service import DocumentService
+from domain.services.email_rate_limiter import EmailRateLimiter
 from domain.services.email_service import EmailService
 from domain.services.rate_limit_service import RateLimitService
 from domain.services.search_service import SearchService
@@ -37,6 +38,7 @@ from infrastructure.external.redis_client import RedisClient
 from infrastructure.external.s3_service import S3Service
 from infrastructure.external.smtp_email_service import SMTPEmailService
 from infrastructure.processors.text_chunker import TextChunker
+from infrastructure.queue.redis_queue import redis_queue_service
 from infrastructure.repositories.postgres_document_processing_job_repository import (
     PostgresDocumentProcessingJobRepository,
 )
@@ -269,6 +271,21 @@ class Container:
                 base_url=settings.base_url,
             )
         return self._instances["email_service"]
+
+    @lru_cache(maxsize=1)
+    def get_email_rate_limiter(self) -> EmailRateLimiter:
+        """Email rate limiter using Redis"""
+        if "email_rate_limiter" not in self._instances:
+            from infrastructure.queue.redis_queue import redis_queue_service
+            self._instances["email_rate_limiter"] = EmailRateLimiter(
+                redis_client=redis_queue_service.redis_conn
+            )
+        return self._instances["email_rate_limiter"]
+
+    @lru_cache(maxsize=1)
+    def get_redis_queue_service(self):
+        """Redis Queue Service for async jobs"""
+        return redis_queue_service
 
     def get_user_repository(self):
         """Retorna função para criar PostgresUserRepository"""
@@ -621,7 +638,11 @@ async def get_user_management_use_case(
 ) -> UserManagementUseCase:
     """Dependency for UserManagementUseCase"""
     return UserManagementUseCase(
-        user_repo=user_repo, auth_service=auth_service, email_service=email_service
+        user_repo=user_repo,
+        auth_service=auth_service,
+        email_service=email_service,
+        redis_queue=container.get_redis_queue_service(),
+        email_rate_limiter=container.get_email_rate_limiter(),
     )
 
 

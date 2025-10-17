@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from rq import get_current_job
@@ -373,3 +373,139 @@ async def _cleanup_expired_uploads(**kwargs) -> Dict[str, Any]:
             "deleted_count": deleted_count,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
+
+
+def send_email_job(
+    email_type: str,
+    recipient_email: str,
+    recipient_name: str,
+    template_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Job para envio de email de forma assíncrona
+
+    Este job é executado pelo worker Redis em processo separado
+
+    Args:
+        email_type: Tipo do email (invitation, welcome, account_activated, password_reset)
+        recipient_email: Email do destinatário
+        recipient_name: Nome completo do destinatário
+        template_data: Dados específicos do template (tokens, nomes, etc)
+
+    Returns:
+        dict: Resultado do envio
+
+    Raises:
+        ValueError: Se tipo de email for desconhecido
+        EmailDeliveryError: Se falhar o envio do email
+    """
+    job = get_current_job()
+    logger.info(
+        f"Iniciando envio de email - Job: {job.id}",
+        extra={
+            "email_type": email_type,
+            "recipient": recipient_email,
+            "job_id": job.id,
+        },
+    )
+
+    try:
+        result = asyncio.run(
+            _send_email_async(email_type, recipient_email, recipient_name, template_data)
+        )
+
+        logger.info(
+            f"Email enviado com sucesso - Job: {job.id}",
+            extra={
+                "email_type": email_type,
+                "recipient": recipient_email,
+                "job_id": job.id,
+            },
+        )
+
+        return {
+            "status": "sent",
+            "email_type": email_type,
+            "recipient": recipient_email,
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Erro no envio de email - Job: {job.id}",
+            extra={
+                "email_type": email_type,
+                "recipient": recipient_email,
+                "error": str(e),
+                "job_id": job.id,
+            },
+        )
+        raise
+
+
+async def _send_email_async(
+    email_type: str,
+    recipient_email: str,
+    recipient_name: str,
+    template_data: Dict[str, Any],
+) -> bool:
+    """
+    Envio assíncrono real do email
+
+    Args:
+        email_type: Tipo do email
+        recipient_email: Email do destinatário
+        recipient_name: Nome completo do destinatário
+        template_data: Dados do template
+
+    Returns:
+        bool: True se enviado com sucesso
+
+    Raises:
+        ValueError: Se tipo de email for desconhecido
+        EmailDeliveryError: Se falhar o envio do email
+    """
+    from infrastructure.config.settings import settings
+    from infrastructure.external.smtp_email_service import SMTPEmailService
+
+    email_service = SMTPEmailService(
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+        smtp_username=settings.smtp_username,
+        smtp_password=settings.smtp_password,
+        smtp_use_tls=settings.smtp_use_tls,
+        from_email=settings.smtp_from_email,
+        base_url=getattr(settings, "base_url", "http://localhost:8000"),
+    )
+
+    if email_type == "invitation":
+        return await email_service.send_invitation_email(
+            email=recipient_email,
+            full_name=recipient_name,
+            invitation_token=template_data.get("invitation_token"),
+            invited_by_name=template_data.get("invited_by_name"),
+            municipality_name=template_data.get("municipality_name"),
+        )
+
+    elif email_type == "welcome":
+        return await email_service.send_welcome_email(
+            email=recipient_email,
+            full_name=recipient_name,
+            municipality_name=template_data.get("municipality_name"),
+        )
+
+    elif email_type == "account_activated":
+        return await email_service.send_account_activated_email(
+            email=recipient_email,
+            full_name=recipient_name,
+        )
+
+    elif email_type == "password_reset":
+        return await email_service.send_password_reset_email(
+            email=recipient_email,
+            full_name=recipient_name,
+            reset_token=template_data.get("reset_token"),
+        )
+
+    else:
+        raise ValueError(f"Tipo de email desconhecido: {email_type}")

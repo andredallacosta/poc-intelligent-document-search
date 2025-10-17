@@ -36,7 +36,7 @@ def create_redis_connection() -> Redis:
 def get_queue_names(args) -> List[str]:
     """Determina quais filas o worker deve processar"""
     if args.all:
-        return ["document_processing", "cleanup_tasks"]
+        return ["document_processing", "cleanup_tasks", "email_sending"]
     elif args.queues:
         return args.queues.split(",")
     else:

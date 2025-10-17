@@ -35,7 +35,7 @@ class TestSMTPEmailService:
         result = await email_service.send_invitation_email(
             email="user@example.com",
             full_name="João Silva",
-            invitation_token="abc123",
+            invitation_token="abc12345",
             invited_by_name="Admin User",
             municipality_name="Prefeitura de São Paulo",
         )
@@ -65,7 +65,7 @@ class TestSMTPEmailService:
         result = await email_service.send_invitation_email(
             email="user@example.com",
             full_name="João Silva",
-            invitation_token="abc123",
+            invitation_token="abc12345",
             invited_by_name="Admin User",
         )
         # Assert
@@ -138,7 +138,7 @@ class TestSMTPEmailService:
             await email_service.send_invitation_email(
                 email="user@example.com",
                 full_name="João Silva",
-                invitation_token="abc123",
+                invitation_token="abc12345",
                 invited_by_name="Admin User",
             )
         assert "Falha ao enviar email" in str(exc_info.value)
@@ -157,7 +157,7 @@ class TestSMTPEmailService:
             await email_service.send_invitation_email(
                 email="user@example.com",
                 full_name="João Silva",
-                invitation_token="abc123",
+                invitation_token="abc12345",
                 invited_by_name="Admin User",
             )
         assert "Falha ao enviar email" in str(exc_info.value)
@@ -184,7 +184,7 @@ class TestSMTPEmailService:
         result = await email_service.send_invitation_email(
             email="user@example.com",
             full_name="João Silva",
-            invitation_token="abc123",
+            invitation_token="abc12345",
             invited_by_name="Admin User",
         )
         # Assert

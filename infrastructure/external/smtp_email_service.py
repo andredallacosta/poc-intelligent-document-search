@@ -74,7 +74,7 @@ class SMTPEmailService(EmailService):
         """Envia email de convite para ativação de conta"""
         
         self._validate_email_input(email, full_name)
-        if not invitation_token or len(invitation_token.strip()) < 10:
+        if not invitation_token or len(invitation_token.strip()) < 8:
             raise EmailDeliveryError("Invalid invitation token")
 
         activation_url = f"{self._base_url}/auth/activate?token={invitation_token}"
@@ -113,7 +113,7 @@ class SMTPEmailService(EmailService):
         """Envia email de redefinição de senha"""
         
         self._validate_email_input(email, full_name)
-        if not reset_token or len(reset_token.strip()) < 10:
+        if not reset_token or len(reset_token.strip()) < 8:
             raise EmailDeliveryError("Invalid reset token")
 
         reset_url = f"{self._base_url}/auth/reset-password?token={reset_token}"

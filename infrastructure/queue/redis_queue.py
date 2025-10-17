@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from redis import Redis
@@ -31,6 +31,10 @@ class RedisQueueService:
 
         self.cleanup_queue = Queue(
             "cleanup_tasks", connection=self.redis_conn, default_timeout="5m"
+        )
+
+        self.email_queue = Queue(
+            "email_sending", connection=self.redis_conn, default_timeout="5m"
         )
 
     def enqueue_document_processing(
@@ -100,6 +104,72 @@ class RedisQueueService:
             logger.error(f"Erro ao enfileirar tarefa de limpeza: {e}")
             raise
 
+    def enqueue_email_sending(
+        self,
+        email_type: str,
+        recipient_email: str,
+        recipient_name: str,
+        template_data: Dict[str, Any],
+        priority: str = "normal",
+    ) -> str:
+        """
+        Enfileira envio de email de forma assíncrona
+
+        Args:
+            email_type: Tipo do email (invitation, welcome, account_activated, password_reset)
+            recipient_email: Email do destinatário
+            recipient_name: Nome completo do destinatário
+            template_data: Dados do template (tokens, nomes, etc)
+            priority: Prioridade (high, normal, low)
+
+        Returns:
+            str: ID do job Redis
+
+        Raises:
+            Exception: Se falhar ao enfileirar
+        """
+        try:
+            from infrastructure.queue.jobs import send_email_job
+
+            job = self.email_queue.enqueue(
+                send_email_job,
+                email_type,
+                recipient_email,
+                recipient_name,
+                template_data,
+                job_timeout="2m",
+                retry=Retry(max=3, interval=[10, 30, 60]),
+                meta={
+                    "priority": priority,
+                    "type": "email_sending",
+                    "email_type": email_type,
+                    "recipient": recipient_email,
+                },
+            )
+
+            logger.info(
+                f"Email enfileirado: {job.id}",
+                extra={
+                    "job_id": job.id,
+                    "email_type": email_type,
+                    "recipient": recipient_email,
+                    "priority": priority,
+                },
+            )
+
+            return job.id
+
+        except Exception as e:
+            logger.error(
+                f"Erro ao enfileirar email: {e}",
+                extra={
+                    "email_type": email_type,
+                    "recipient": recipient_email,
+                    "error": str(e),
+                },
+            )
+            raise
+
     def get_job_status(self, job_id: str) -> Optional[dict]:
         """
         Obtém status de um job Redis
@@ -143,6 +213,8 @@ class RedisQueueService:
                 queue = self.document_queue
             elif queue_name == "cleanup_tasks":
                 queue = self.cleanup_queue
+            elif queue_name == "email_sending":
+                queue = self.email_queue
             else:
                 raise ValueError(f"Fila desconhecida: {queue_name}")
 

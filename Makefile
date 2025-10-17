@@ -285,6 +285,10 @@ worker-cleanup: ## 🧹 Start Redis worker only for cleanup tasks
 	@echo "🧹 Starting Redis worker for cleanup tasks..."
 	@python worker.py --queues cleanup_tasks
 
+worker-email: ## 📧 Start Redis worker only for email sending
+	@echo "📧 Starting Redis worker for email sending..."
+	@python worker.py --queues email_sending
+
 worker-verbose: ## 🔄 Start Redis worker with verbose logging
 	@echo "🔄 Starting Redis worker with verbose logging..."
 	@python worker.py --verbose

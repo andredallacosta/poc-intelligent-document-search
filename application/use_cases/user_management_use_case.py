@@ -8,10 +8,12 @@ from domain.entities.user import AuthProvider, User, UserRole
 from domain.exceptions.auth_exceptions import (
     EmailDeliveryError,
     InsufficientPermissionsError,
+    RateLimitExceededError,
     UserNotFoundError,
 )
 from domain.repositories.user_repository import UserRepository
 from domain.services.authentication_service import AuthenticationService
+from domain.services.email_rate_limiter import EmailRateLimiter
 from domain.services.email_service import EmailService
 from domain.value_objects.municipality_id import MunicipalityId
 from domain.value_objects.user_id import UserId
@@ -27,10 +29,14 @@ class UserManagementUseCase:
         user_repo: UserRepository,
         auth_service: AuthenticationService,
         email_service: EmailService,
+        redis_queue=None,
+        email_rate_limiter: Optional[EmailRateLimiter] = None,
     ):
         self._user_repo = user_repo
         self._auth_service = auth_service
         self._email_service = email_service
+        self._redis_queue = redis_queue
+        self._email_rate_limiter = email_rate_limiter
 
     async def create_user_with_invitation(
         self, request: CreateUserDTO, created_by: User
@@ -63,43 +69,90 @@ class UserManagementUseCase:
                 if mid != request.primary_municipality_id:
                     new_user.add_municipality(MunicipalityId(mid))
 
-        # 5. Salva no banco
+        # 5. Verifica rate limiting (antes de salvar no banco)
+        if self._email_rate_limiter:
+            if not self._email_rate_limiter.check_user_limit(str(created_by.id.value)):
+                raise RateLimitExceededError(
+                    "Limite de 10 convites por minuto atingido. Aguarde antes de enviar novos convites."
+                )
+
+            if not self._email_rate_limiter.check_global_limit():
+                raise RateLimitExceededError(
+                    "Sistema temporariamente ocupado. Tente novamente em alguns segundos."
+                )
+
+        # 6. Salva no banco
         await self._user_repo.save(new_user)
 
-        # 6. Envia email de convite
-        try:
-            await self._email_service.send_invitation_email(
-                email=new_user.email,
-                full_name=new_user.full_name,
-                invitation_token=new_user.invitation_token,
-                invited_by_name=created_by.full_name,
-            )
+        # 7. Enfileira email de convite (assíncrono)
+        if self._redis_queue:
+            try:
+                job_id = self._redis_queue.enqueue_email_sending(
+                    email_type="invitation",
+                    recipient_email=new_user.email,
+                    recipient_name=new_user.full_name,
+                    template_data={
+                        "invitation_token": new_user.invitation_token,
+                        "invited_by_name": created_by.full_name,
+                        "municipality_name": None,
+                    },
+                    priority="high",
+                )
 
-            logger.info(
-                "invitation_email_sent",
-                extra={
-                    "user_id": str(new_user.id.value),
-                    "email": new_user.email,
-                },
-            )
-        except EmailDeliveryError:
-            logger.error(
-                "invitation_email_delivery_failed",
-                extra={
-                    "user_id": str(new_user.id.value),
-                    "email": new_user.email,
-                },
-            )
-            raise
-        except Exception as e:
-            logger.warning(
-                "invitation_email_failed",
-                extra={
-                    "user_id": str(new_user.id.value),
-                    "email": new_user.email,
-                    "error": str(e),
-                },
-            )
+                logger.info(
+                    "invitation_email_enqueued",
+                    extra={
+                        "user_id": str(new_user.id.value),
+                        "email": new_user.email,
+                        "job_id": job_id,
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    "invitation_email_enqueue_failed",
+                    extra={
+                        "user_id": str(new_user.id.value),
+                        "email": new_user.email,
+                        "error": str(e),
+                    },
+                )
+                raise EmailDeliveryError(
+                    "Falha ao enfileirar email de convite. Tente novamente."
+                )
+        else:
+            try:
+                await self._email_service.send_invitation_email(
+                    email=new_user.email,
+                    full_name=new_user.full_name,
+                    invitation_token=new_user.invitation_token,
+                    invited_by_name=created_by.full_name,
+                )
+
+                logger.info(
+                    "invitation_email_sent",
+                    extra={
+                        "user_id": str(new_user.id.value),
+                        "email": new_user.email,
+                    },
+                )
+            except EmailDeliveryError:
+                logger.error(
+                    "invitation_email_delivery_failed",
+                    extra={
+                        "user_id": str(new_user.id.value),
+                        "email": new_user.email,
+                    },
+                )
+                raise
+            except Exception as e:
+                logger.warning(
+                    "invitation_email_failed",
+                    extra={
+                        "user_id": str(new_user.id.value),
+                        "email": new_user.email,
+                        "error": str(e),
+                    },
+                )
 
         logger.info(
             "user_created_with_invitation",
@@ -163,53 +216,97 @@ class UserManagementUseCase:
         # 3. Salva no banco
         await self._user_repo.save(user)
 
-        # 4. Envia email de confirmação de ativação
-        try:
-            await self._email_service.send_account_activated_email(
-                email=user.email,
-                full_name=user.full_name,
-            )
+        # 4. Enfileira emails de confirmação e boas-vindas (assíncrono)
+        if self._redis_queue:
+            try:
+                job_id_activated = self._redis_queue.enqueue_email_sending(
+                    email_type="account_activated",
+                    recipient_email=user.email,
+                    recipient_name=user.full_name,
+                    template_data={},
+                    priority="high",
+                )
 
-            logger.info(
-                "activation_confirmation_email_sent",
-                extra={
-                    "user_id": str(user.id.value),
-                    "email": user.email,
-                },
-            )
-        except Exception as e:
-            logger.warning(
-                "activation_confirmation_email_failed",
-                extra={
-                    "user_id": str(user.id.value),
-                    "email": user.email,
-                    "error": str(e),
-                },
-            )
+                logger.info(
+                    "activation_confirmation_email_enqueued",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                        "job_id": job_id_activated,
+                    },
+                )
 
-        # 5. Envia email de boas-vindas
-        try:
-            await self._email_service.send_welcome_email(
-                email=user.email,
-                full_name=user.full_name,
-            )
+                job_id_welcome = self._redis_queue.enqueue_email_sending(
+                    email_type="welcome",
+                    recipient_email=user.email,
+                    recipient_name=user.full_name,
+                    template_data={"municipality_name": None},
+                    priority="normal",
+                )
 
-            logger.info(
-                "welcome_email_sent",
-                extra={
-                    "user_id": str(user.id.value),
-                    "email": user.email,
-                },
-            )
-        except Exception as e:
-            logger.warning(
-                "welcome_email_failed",
-                extra={
-                    "user_id": str(user.id.value),
-                    "email": user.email,
-                    "error": str(e),
-                },
-            )
+                logger.info(
+                    "welcome_email_enqueued",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                        "job_id": job_id_welcome,
+                    },
+                )
+            except Exception as e:
+                logger.warning(
+                    "activation_emails_enqueue_failed",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                        "error": str(e),
+                    },
+                )
+        else:
+            try:
+                await self._email_service.send_account_activated_email(
+                    email=user.email,
+                    full_name=user.full_name,
+                )
+
+                logger.info(
+                    "activation_confirmation_email_sent",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                    },
+                )
+            except Exception as e:
+                logger.warning(
+                    "activation_confirmation_email_failed",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                        "error": str(e),
+                    },
+                )
+
+            try:
+                await self._email_service.send_welcome_email(
+                    email=user.email,
+                    full_name=user.full_name,
+                )
+
+                logger.info(
+                    "welcome_email_sent",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                    },
+                )
+            except Exception as e:
+                logger.warning(
+                    "welcome_email_failed",
+                    extra={
+                        "user_id": str(user.id.value),
+                        "email": user.email,
+                        "error": str(e),
+                    },
+                )
 
         logger.info(
             "user_account_activated",

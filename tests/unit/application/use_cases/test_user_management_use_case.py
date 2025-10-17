@@ -426,3 +426,110 @@ class TestUserManagementUseCase:
             await user_management_use_case.create_user_with_invitation(
                 request, admin_user
             )
+
+    @pytest.mark.asyncio
+    async def test_create_user_enqueues_email(
+        self, mock_user_repo, mock_auth_service, mock_email_service, admin_user
+    ):
+        """Deve enfileirar email ao criar usuário (não enviar sincronamente)"""
+        mock_redis_queue = Mock()
+        mock_redis_queue.enqueue_email_sending.return_value = "job-123"
+
+        use_case = UserManagementUseCase(
+            user_repo=mock_user_repo,
+            auth_service=mock_auth_service,
+            email_service=mock_email_service,
+            redis_queue=mock_redis_queue,
+        )
+
+        request = CreateUserDTO(
+            email="newuser@test.com",
+            full_name="New User",
+            role="user",
+            primary_municipality_id=admin_user.primary_municipality_id.value,
+        )
+
+        mock_user_repo.find_by_email = AsyncMock(return_value=None)
+        mock_user_repo.save = AsyncMock()
+        mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
+
+        result = await use_case.create_user_with_invitation(request, admin_user)
+
+        assert isinstance(result, UserListDTO)
+
+        mock_redis_queue.enqueue_email_sending.assert_called_once()
+        call_kwargs = mock_redis_queue.enqueue_email_sending.call_args.kwargs
+        assert call_kwargs["email_type"] == "invitation"
+        assert call_kwargs["recipient_email"] == "newuser@test.com"
+        assert call_kwargs["priority"] == "high"
+
+    @pytest.mark.asyncio
+    async def test_create_user_continues_if_queue_fails(
+        self, mock_user_repo, mock_auth_service, mock_email_service, admin_user
+    ):
+        """Deve falhar se fila de email falhar"""
+        mock_redis_queue = Mock()
+        mock_redis_queue.enqueue_email_sending.side_effect = Exception("Redis offline")
+
+        use_case = UserManagementUseCase(
+            user_repo=mock_user_repo,
+            auth_service=mock_auth_service,
+            email_service=mock_email_service,
+            redis_queue=mock_redis_queue,
+        )
+
+        request = CreateUserDTO(
+            email="newuser@test.com",
+            full_name="New User",
+            role="user",
+            primary_municipality_id=admin_user.primary_municipality_id.value,
+        )
+
+        mock_user_repo.find_by_email = AsyncMock(return_value=None)
+        mock_user_repo.save = AsyncMock()
+        mock_user_repo.find_by_id = AsyncMock(return_value=admin_user)
+
+        with pytest.raises(EmailDeliveryError):
+            await use_case.create_user_with_invitation(request, admin_user)
+
+        mock_user_repo.save.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_activate_user_enqueues_confirmation_emails(
+        self, mock_user_repo, mock_auth_service, mock_email_service, invited_user
+    ):
+        """Deve enfileirar emails de confirmação e boas-vindas na ativação"""
+        mock_redis_queue = Mock()
+        mock_redis_queue.enqueue_email_sending.return_value = "job-456"
+
+        use_case = UserManagementUseCase(
+            user_repo=mock_user_repo,
+            auth_service=mock_auth_service,
+            email_service=mock_email_service,
+            redis_queue=mock_redis_queue,
+        )
+
+        request = ActivateUserDTO(
+            invitation_token="invitation_token_123",
+            auth_provider="email_password",
+            password="senha123",
+        )
+
+        mock_user_repo.find_by_invitation_token = AsyncMock(return_value=invited_user)
+        mock_user_repo.save = AsyncMock()
+        mock_user_repo.find_by_id = AsyncMock(return_value=None)
+        mock_auth_service.hash_password.return_value = "hashed_password"
+
+        result = await use_case.activate_user_account(request)
+
+        assert isinstance(result, UserListDTO)
+
+        assert mock_redis_queue.enqueue_email_sending.call_count == 2
+
+        first_call = mock_redis_queue.enqueue_email_sending.call_args_list[0]
+        assert first_call.kwargs["email_type"] == "account_activated"
+        assert first_call.kwargs["priority"] == "high"
+
+        second_call = mock_redis_queue.enqueue_email_sending.call_args_list[1]
+        assert second_call.kwargs["email_type"] == "welcome"
+        assert second_call.kwargs["priority"] == "normal"

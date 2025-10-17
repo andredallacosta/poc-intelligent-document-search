@@ -9,6 +9,7 @@ from application.use_cases.user_management_use_case import UserManagementUseCase
 from domain.exceptions.auth_exceptions import (
     EmailDeliveryError,
     InsufficientPermissionsError,
+    RateLimitExceededError,
     UserNotFoundError,
 )
 from interface.dependencies.container import get_user_management_use_case
@@ -52,6 +53,15 @@ async def create_user_with_invitation(
 
         return new_user
 
+    except RateLimitExceededError as e:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": str(e),
+                "code": e.error_code,
+            },
+        )
     except InsufficientPermissionsError as e:
         raise HTTPException(
             status_code=403,
