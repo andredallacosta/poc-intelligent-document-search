@@ -178,7 +178,7 @@ tests/
 ### **CODE STANDARDS**
 
 - **ALWAYS activate venv first**: `source .venv/bin/activate` before any Python command
-- **No comments in code** (self-documenting preferred)
+- **NEVER comments in code !IMPORTANT** (self-documenting preferred)
 - **No automatic README updates** (manual only)
 - **No explanations in files** (code should be clear)
 - **Generate code only when explicitly requested**
